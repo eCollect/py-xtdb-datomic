@@ -1,0 +1,12 @@
+{:paths [ ;; "some/src/path"
+         ]
+ :deps { ;; xtdb
+        com.xtdb/xtdb-core {:mvn/version "1.23.1"}
+        com.xtdb/xtdb-rocksdb {:mvn/version "1.23.1"}
+        com.xtdb/xtdb-metrics {:mvn/version "1.23.1"}
+        com.xtdb/xtdb-http-server {:mvn/version "1.23.1"}
+        ;; com.xtdb/xtdb-http-client {:mvn/version "1.23.1"}
+        com.xtdb/xtdb-lucene {:mvn/version "1.23.1"}
+        }
+ :jvm-opts ["-Xmx2G"]
+ :aliases {:xt {:main-opts ["-m" "xtdb.main"]}}}

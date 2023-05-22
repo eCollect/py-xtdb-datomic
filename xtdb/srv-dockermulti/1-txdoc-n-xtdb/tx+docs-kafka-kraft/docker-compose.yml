@@ -1,0 +1,236 @@
+name: ok
+#for linux: on the host, chmod a+rwx -R ./data  XXX as nothing else works
+#userns_mode: default
+#user: "${DUID}:${DGID}"
+services:
+  # https://hub.docker.com/r/bitnami/kafka
+  # https://github.com/bitnami/containers/blob/main/bitnami/kafka/docker-compose.yml
+
+  # https://hub.docker.com/r/bitnami/kafka
+  kafka:
+    #container_name: kafka
+    #user: "${DUID}:${DGID}"
+    #user: "nobody"
+    #command: id
+    stop_grace_period: 54s
+    platform: linux/amd64
+    image: bitnami/kafka:latest
+    deploy: #ignored by compose
+      mode: global
+    #ports:
+    #  - 9092:9092
+    expose: 
+      - 9092
+    environment:
+      - KAFKA_BROKER_ID=1
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - BOOTSTRAP_SERVERS=kafka:9092
+      #without zookeeper - KRaft  https://github.com/bitnami/containers/issues/4315  https://github.com/apache/kafka/tree/trunk/config/kraft
+      - KAFKA_ENABLE_KRAFT=yes
+      #- KAFKA_KRAFT_CLUSTER_ID=112233-needs-be-uuid - if more than one kafka in cluster
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      #- KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT   #all mapped to PLAINTEXT by default
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      #the 1@ above must match KAFKA_BROKER_ID
+      #- BITNAMI_DEBUG=yes
+    volumes:
+      - $PWD/data/kafka:/bitnami/kafka
+      #- vol_kafka:/bitnami/kafka
+
+#  pg:   #https://hub.docker.com/_/postgres     ..how about locales??
+#    image: postgres:15
+#    restart: unless-stopped
+#    ports:
+#      - 5432:5432
+#    #expose:
+#    #  - 5432
+#    #memory ????
+#    environment:
+#      - POSTGRES_PASSWORD=bxtdb
+#      - POSTGRES_USER=axtdb #superuser, default is postgresql
+#      - POSTGRES_DB=xtdb    #default to $POSTGRES_USER
+#      # postgres://user:pass@pg:5432/db?sslmode=disable
+#      # - PGDATA - /where/data/is , default /var/lib/postgresql/data
+#      # - POSTGRES_INITDB_ARGS – Sends arguments to postgres_initdb
+#      # - POSTGRES_INITDB_WALDIR – directory for transaction log
+#      # - POSTGRES_HOST_AUTH_METHOD - auth-method for host connections to databases, users, and addresses
+#      # - POSTGRES_PASSWORD_FILE
+#    volumes:
+#      - $PWD/data/pg:/var/lib/postgresql/data
+## what's this? around postgresql ??
+##  adminer:
+##   image: adminer
+##   restart: always
+##   ports:
+##       - 8080:8080
+
+
+
+#  xtdb: 
+#    depends_on:
+#      - kafka
+#    platform: linux/amd64
+#    build:
+#      context: .
+#    deploy: #ignored by compose
+#      mode: replicated
+#      replicas: 3
+#    ports:
+#      - 3001-3033:3000
+#    volumes:
+##      - "${PWD}/data/xtdbb{{.Task.Slot}}:/xt/data"
+#      - xtvol:/xt/data
+#      - cp_index:/xt/cp_index
+#      - $PWD/data/cp_lucene:/xt/cp_lucene
+#    restart: unless-stopped
+
+  chkpt:
+    extends:
+        service: chkpt
+        file: ./checkpointkeeper.yml
+    volumes:
+        - $PWD/data/chkpt/index:/cp_index
+        - $PWD/data/chkpt/lucene:/cp_lucene
+
+  xtdb-1: &xtdbcfg
+    depends_on:
+    #  - pg
+      - kafka
+    stop_grace_period: 54s
+    platform: linux/amd64
+    build:
+      context: .    
+      dockerfile: xtdb.Dockerfile
+      args:     # for kafka #these go as ARGS/env into Dockerfile..  
+        GROUPID: gx1
+    deploy: #ignored by compose
+      mode: global
+    ports:
+      - 3001:3000
+    volumes:
+      #- vol_x1:/xt/data
+      - $PWD/data/xtdb1:/xt/data
+      - $PWD/data/chkpt:/xt/chkpt   #XXX beware, path is stored in checkpoint-...,edn filss!
+      #- $PWD/data/tmp:/tmp ?????
+    restart: unless-stopped
+
+  xtdb-2:
+    <<: *xtdbcfg
+    ports:
+      - 3002:3000
+    build:
+      context: .    
+      dockerfile: xtdb.Dockerfile
+      args:     # for kafka
+        GROUPID: gx2
+    volumes:
+      - $PWD/data/xtdb2:/xt/data
+      - $PWD/data/chkpt:/xt/chkpt
+
+#  xtdb-3:
+#    <<: *xtdbcfg
+#    ports:
+#      - 3003:3000
+#    build:
+#      context: .    
+#      dockerfile: xtdb.Dockerfile
+#      args:     # for kafka
+#        GROUPID: gx3
+#    volumes:
+#      - $PWD/data/xtdb3:/xt/data
+#      - $PWD/data/chkpt:/xt/chkpt
+
+#  xtdb-4:
+#    <<: *xtdbcfg
+#    ports:
+#      - 3004:3000
+#    build:
+#      context: . 
+#      dockerfile: xtdb.Dockerfile
+#      args:     # for kafka
+#        GROUPID: gx4
+#    volumes:
+#      - $PWD/data/xtdb4:/xt/data
+#      - $PWD/data/chkpt:/xt/chkpt
+#
+#  xtdb-5:
+#    <<: *xtdbcfg
+#    ports:
+#      - 3005:3000
+#    build:
+#      context: . 
+#      dockerfile: xtdb.Dockerfile
+#      args:     # for kafka
+#        GROUPID: gx5
+#    volumes:
+#      - $PWD/data/xtdb5:/xt/data
+#      - $PWD/data/chkpt:/xt/chkpt
+
+#volumes:
+#  vol_docs:
+#    driver: local
+#    driver_opts: &driver_opts
+#      o: bind
+#      type: none
+#      device: ${PWD}/data/doc_store
+#
+#  vol_tx:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/tx_store
+#
+#  vol_kafka:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/kafka
+#
+#  vol_x1: 
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/xtdb1
+#
+#  vol_x2:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/xtdb2
+#
+#  vol_x3:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/xtdb3
+#
+#  vol_x4:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/xtdb4
+#
+#  vol_x5:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/xtdb5
+
+#  vol_checkpt:
+#    driver: local
+#    driver_opts:
+#      <<: *driver_opts
+#      device: ${PWD}/data/cp_index
+
+#  xtvol: 
+#    #name: "${PWD}/data/xtvol-{{.Task.Slot}}"
+##    name: "xtvoll{{.Task.Slot}}"
+#    driver: local
+#    driver_opts:
+#      o: bind
+#      type: none
+#      device: "${PWD}/data/xtdbbb-{{.Task.Slot}}"
+
+# vim:ts=4:sw=4:expandtab

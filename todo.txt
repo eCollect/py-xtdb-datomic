@@ -1,0 +1,107 @@
+#TODO
+
+https://juxt-oss.zulipchat.com/#narrow/stream/194466-xtdb-users/topic/trying.20xtdb.20in.20financial.20stuff
+
+#   open-source of this?
+#   $$ paid consultantion -> $$ paid support eventualy
+
+- objmapper.. maybe common ??
+    - save:
+        - update-or-create = default
+        - these are possible but weak:
+        -- create-no-update = match-not-exists+put
+        -- update-no-create = match-exist+put
+          -- with version-of-obj-optimistic-lock = match-exists-same-version+put
+    - id=some-autoid-if-not-there
+        - datomic: id treated as temporary, used to link objs and report real-id
+        - xtdb: id is the-real-id
+        see https://github.com/sony/sonyflake
+    - - some future: unit-of-work, topology-sort etc
+        - but for now, assume plain record/doc-based one-by-one saving.. 
+    - attr-declare/processing/conversions:        
+        - shema
+            ? pydantic ?
+        - refs
+            - to-one
+            - to-many
+
+
+requiredness: 
+ ?   transaction-function rejecting data if xyz missing
+
+uniqueness: 
+ ~  datomic: unique/ident , composite indexes etc
+    xtdb: ??????? tx-func again?
+        https://docs.xtdb.com/resources/faq/#uniqueconstraint
+
+
+type-assurance choices: 
+ -A attributes carry the type: 
+    e.g. just   eav( x, :account/name, 'abc' ) alone infers x is account
+    + simplest, fastest, nothing extra
+    - rely on all attr-names being 2-level and correct
+    - having x, no way to guess what it is
+ -B id-attributes carry the type - add extra 2-clause 
+        eav( x, :thing-type/id) ANDed to other filters
+    e.g. .where( eav( x, :account/id),  #, infers x is account
+                 eav( x, :account/name, 'abc' ), ...)
+    ~ reuse available data/attr but
+     - intermediate obj, needs to also have such :typename/id
+    - extra 2-clause/condition per filter
+    - rely on attr-name+data being correct+available (requiredness ?)
+    + not rely on other attr-naming - can be any or without namespaces 
+    - having x, tricky/ambiguous/no-way to guess what it is - may have multiple xxx/id
+ -C special common attribute carry the type - add extra attr + 3-clause 
+        eav( x, :meta/type, thing-type) ANDed to other filters
+    e.g. .where( eav( x, :meta/type, 'account'),    #, infers x is account
+                 eav( x, :account/name, 'abc' ), ...)
+    - extra attr/data per obj
+    - extra 3-clause/condition per filter
+    + not rely on other attr-naming - can be any or without namespaces 
+    + having x, can know what it is ; non-ambiguous
+-B2 system db-id-attr carry the type    
+    + no extra attr/data per obj
+    - only possible in xt ; datomic always makes its own ids
+    - 2 extra 3-clause/condition per filter
+    - checking via pred_startswith ???
+    + having x, can know what it is - the_id.split(..)[0] ; non-ambiguous
+
+ ???? undecided
+ ++?? maybe C - most clear&non-ambiguous ; non-user objects (intermediate m2m tables, separate components, etc) also needs it
+
+attr-naming: depending on above type-assurance choices...
+ >  A -> mandatory namespace=thing-type
+    B -> only id has mandatory namespace=thing-type
+    C -> anything ; but every obj has the special type-attr with special namespace)
+ ++++ go for A: most limiting but most clear which-is-what, allows for later choice
+
+    https://forum.datomic.com/t/attribute-naming-conventions/835/8
+    https://clojurians-log.clojureverse.org/datomic/2020-04-01
+    'model the relations (attrs) , not the entities (tables)'
+
+#########
+PLAIN ATTRS: text numeric=int/float/? datetime bool  enum:as-str-or-kw?  uuid:(for ids/refs)
+attr-features: nullable/required  many (ordered?)  is_identity  auto-fill?
+constraints: unique indexable?
+
+RELATIONS: ref=link=pointer inside parent
+features: many: o2o-o2m-m2o-m2m  separate/ component/ composite=embedded
+#separate/ component/ composite-features:
+#   -       +da -xt     +       auto-retrieve/delete with parent
+#   +       +           -       change-independently-of-parent
+#   +       +           -       search-independently-of-parent: find component-with-characteristics
+#   +       +           -       parent-searchable: find-parent-which-has-component-with-characteristics
+#   -       -           +       change-only-via-parent
+#   -       -           +       inside-parent-history
+#   -       ~+          +       o2o
+#   -       ~+          +       o2m
+#   +       ~-          -       m2o
+#   ~+      ~-          -       m2m
+## components are separate, hence the o2m-etc needs extra constraints (tx-funcs?) for one-ness
+## as long as link/s is inside parent, it's not fully symmetric m2m, change-wise
+
+#XXX seems anything searchable needs be separate, and only marked as "component", for auto-retrieve/delete-with-parent etc
+#   mongo can index/search on inner stuff ; xtdb does not ; datomic has all separated except tuples
+# history: therefore = history of entity + histories of all components-mentioned-anywhere-and-anytime
+
+# vim:ts=4:sw=4:expandtab

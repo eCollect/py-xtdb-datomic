@@ -1,0 +1,20 @@
+name: chkpt
+services:
+ chkpt:
+    platform: linux/amd64
+    image: alpine:latest
+    #stop_grace_period: 3s
+    build:
+        context: .    
+        #dockerfile: checkpointkeeper.Dockerfile
+    entrypoint: 
+        - /checkpointkeeper-looper.sh   
+        - /cp_index 
+        - /cp_lucene
+    volumes:
+#        - $PWD/data/cp_index:/cp_index
+#        - $PWD/data/cp_lucene:/cp_lucene
+        - ./checkpointkeeper.sh:/checkpointkeeper.sh
+        - ./chkpt-looper.sh:/checkpointkeeper-looper.sh
+
+# vim:ts=4:sw=4:expandtab

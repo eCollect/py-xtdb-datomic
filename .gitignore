@@ -1,0 +1,8 @@
+xtdb/srv*/data*
+*.jar
+*.zip
+1/
+.cpcache
+__pycache__
+.DS_Store
+.vscode/

@@ -1,0 +1,42 @@
+;; {:paths [ ;; "some/src/path"
+;;          ]
+;;  :deps { ;; xtdb
+;;         com.xtdb/xtdb-core {:mvn/version "1.23.1"}
+;;         com.xtdb/xtdb-rocksdb {:mvn/version "1.23.1"}
+;;         com.xtdb/xtdb-metrics {:mvn/version "1.23.1"}
+;;         com.xtdb/xtdb-http-server {:mvn/version "1.23.1"}
+;;         com.xtdb/xtdb-http-client {:mvn/version "1.23.1"}
+;;         com.xtdb/xtdb-lucene {:mvn/version "1.23.1"}
+;;         }
+;;  :jvm-opts ["-Xmx2G"]
+;;  :aliases {:xt {:main-opts ["-m" "xtdb.main"]}}}
+
+{:paths ["resources"]
+    :deps {
+              org.clojure/clojure {:mvn/version "1.11.1"}
+
+              ;; Logging
+              org.slf4j/slf4j-api {:mvn/version "1.7.29"}
+              ch.qos.logback/logback-classic {:mvn/version "1.2.3"}
+
+              ;; XTDB
+              com.xtdb/xtdb-core {:mvn/version "1.23.1"}
+              com.xtdb/xtdb-rocksdb {:mvn/version "1.23.1"}
+              com.xtdb/xtdb-metrics {:mvn/version "1.23.1"}
+              com.xtdb/xtdb-http-server {:mvn/version "1.23.1"}
+            ;;  com.xtdb/xtdb-http-client {:mvn/version "1.23.1"}
+              com.xtdb/xtdb-lucene {:mvn/version "1.23.1"}
+              com.xtdb/xtdb-kafka {:mvn/version "1.23.1"}
+
+              com.xtdb/xtdb-jdbc {:mvn/version "1.23.1"}
+			  org.postgresql/postgresql {:mvn/version "42.2.18" }
+              }
+    :jvm-opts ["-Xmx2G"]
+
+	:aliases { 
+	   	:uberjar { :deps { io.github.seancorfield/build-clj { :git/tag "v0.6.7" :git/sha "22c2d09"}}
+          	:exec-fn org.corfield.build/uber
+            :exec-args {  :main xtdb.main   :ns-compile [xtdb.main]}
+			}
+		}
+}

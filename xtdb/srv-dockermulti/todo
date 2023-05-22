@@ -1,0 +1,31 @@
+note: the xtdb-nodes currently are one per role
+
+single golden-store/source-of-truth:
++ 1 kafka(tx+doc)/zoo   + N xtdb (GROUPID !!)
++ 1 kafka(tx+doc)/kraft + N xtdb
++ 1 kafka(tx)/kraft + 1 postgres(doc) + N xtdb
++ 1 postgres(tx) + 1 postgres(doc) + N xtdb
+
+clustered golden-store/source-of-truth: 
+-- same as above but clustered-tx/doc - behind load-balancer?
+-- using docker --scale ?
+-- partial-order ?
+
+clustered "single" xtdb-role:
+-- put xtdb-nodes behind load-balancer?
+-- using docker --scale ?
+
+- add xtdb-role without stopping:
+-- separate xtdb-container-with-parametrisation ?? 
+
+kafka-inside:
+    + zookeeper as controller
+    + kraft as controller
+    - partial-order multiple
+
+xtdb-inside: 
+    + index-checkpointing
+    + lucene-checkpointing
+    + stop-grace-timeout
+
+# vim:ts=4:sw=4:expandtab

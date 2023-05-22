@@ -1,0 +1,23 @@
+ready:
+  dbclient.py
+  qsyntax.py
+maybe:
+  schema.py
+  toschema.py
+  enums_deref/ is tried .. but not used
+
+all else is in flux, see ./makefile and ../makefile  
+
+
+#####
+py: rather simplistic
+ github.com/gns24/pydatomic
+
+ruby: 
+ github.com/relevance/diametric
+
+examples:
+ github.com:Datomic/mbrainz-sample.git
+ github.com/Datomic/datomic-java-examples
+ github.com/Datomic/day-of-datomic
+

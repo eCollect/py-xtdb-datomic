@@ -1,0 +1,114 @@
+{
+ ;; NOTE keep closing brackets under same indent as of what they are closing ; btw comma is ignored=whitespace ;
+
+:xtdb.http-server/server {
+    :port 3000
+    }
+:xtdb.rocksdb/block-cache {
+    :xtdb/module xtdb.rocksdb/->lru-block-cache
+	:cache-size 268435456 ;;256M ;; 536870912;; 512M
+    }
+:local_rocksdb {
+    :xtdb/module xtdb.rocksdb/->kv-store
+    :db-dir "/xt/data/index"  ;; specific per node
+    :enable-filters? true     ;; enable prefix optz
+    :block-cache :xtdb.rocksdb/block-cache
+    ;; :metrics { :xtdb/module xtdb.rocksdb.metrics/->metrics } ;; works but incomprehensible
+    :checkpointer {
+        :xtdb/module xtdb.checkpoint/->checkpointer
+        :store {
+            :xtdb/module xtdb.checkpoint/->filesystem-checkpoint-store
+            :path "/xt/chkpt/index" ;; persistent, common for all nodes
+            }
+        :approx-frequency "PT33M"
+        ;; :checkpoint-dir .... defaults to /tmp ! which by default inside dockerimage is same filesystem as / which is /var/lib/docker on host
+        }
+    }
+:xtdb/index-store {
+    :kv-store :local_rocksdb
+    }
+
+;; https://docs.xtdb.com/storage/kafka/
+;; :kafka-config {
+;;     :xtdb/module xtdb.kafka/->kafka-config
+;;     :bootstrap-servers "kafka:9092"
+;;     :group-id "GROUPID" ;; diff for each node
+;;     }
+;; :xtdb/tx-log {
+;;     :xtdb/module xtdb.kafka/->tx-log
+;;     :kafka-config :kafka-config
+;;     :tx-topic-opts {
+;;         :topic-name "xtdb-transaction-log"
+;;         }
+;;     :poll-wait-duration "PT1S"
+;;     }
+;; :xtdb/document-store {
+;;     :xtdb/module xtdb.kafka/->document-store
+;;     :kafka-config :kafka-config
+;;     :doc-topic-opts {
+;;         :topic-name "xtdb-docs"     ; this-0 shows as :xtdb.tx-log/consumer-state XXX ??
+;;         }
+;;     :local-document-store {
+;;         :kv-store :local_rocksdb
+;;         }
+;;     :poll-wait-duration "PT1S"
+;;     }
+
+;; https://docs.xtdb.com/storage/jdbc/
+:xtdb.jdbc/connection-pool {
+    :dialect {
+        :xtdb/module xtdb.jdbc.psql/->dialect
+        }
+    :pool-opts {
+        :maximumPoolSize 10
+        }
+    :db-spec {
+        ;; :jdbcUrl "jdbc:postgresql://pg:5432/xtdb?user=axtdb&password=bxtdb"
+         :host "pg"
+         :port  5432
+         :password "bxtdb"
+         :user   "axtdb"
+         :dbname "xtdb"
+        }
+    }
+:xtdb/tx-log {
+    :xtdb/module xtdb.jdbc/->tx-log
+    :connection-pool :xtdb.jdbc/connection-pool
+    :poll-sleep-duration "PT1S"
+    }
+:xtdb/document-store {
+    :xtdb/module xtdb.jdbc/->document-store
+    :connection-pool :xtdb.jdbc/connection-pool
+    ;; document-cache ??
+    }
+
+:xtdb.lucene/lucene-store {
+    :db-dir "/xt/data/lucene"
+    ;;  :indexer xtdb.lucene.multi-field/->indexer  ;;for multi-field lucene-text-search - XXX builds another index than without it
+    ;; :refresh-frequency ..  ;; default=PT0S i.e. immediate ; negative turns-it-off (e.g. while startup warming, then enable+restart)
+    ;; :fsync-frequency .. ;; default=PT5M when to do commit-memory-to-persistent which is heavy
+    :checkpointer {
+        :xtdb/module xtdb.checkpoint/->checkpointer
+        :store {
+            :xtdb/module xtdb.checkpoint/->filesystem-checkpoint-store
+            :path "/xt/chkpt/lucene" ;; persistent, common for all nodes
+            }
+        :approx-frequency "PT33M"
+        ;; :checkpoint-dir .. ;; default=/tmp XXX which by default inside dockerimage is same filesystem as / which is /var/lib/docker on host
+        }
+    }
+;; :xtdb.metrics.console/reporter {
+;;     :report-frequency "PT3M"
+;;     }
+
+;; postgresql,tx+docs: TODO
+;; :xtdb.jdbc/connection-pool {
+;;    :dialect { :xtdb/module xtdb.jdbc.psql/->dialect }
+;;    :pool-opts { ... }
+;;    :db-spec { :jdbcUrl "..." } ;; or :host "..." :dbname "..." :user "..." :password "..."
+;;    }
+;; :xtdb/tx-log         { :xtdb/module xtdb.jdbc/->tx-log         , :connection-pool :xtdb.jdbc/connection-pool , :poll-sleep-duration "PT1S" }
+;; :xtdb/document-store { :xtdb/module xtdb.jdbc/->document-store , :connection-pool :xtdb.jdbc/connection-pool }
+
+} ;;eof
+;; vim:ts=4:sw=4:expandtab

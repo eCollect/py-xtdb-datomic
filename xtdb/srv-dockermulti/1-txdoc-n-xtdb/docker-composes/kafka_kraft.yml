@@ -1,0 +1,38 @@
+#for linux: on the host, chmod a+rwx -R ./data/kafka  XXX as nothing else works
+
+name: kafka+kraft
+services:
+  # https://hub.docker.com/r/bitnami/kafka
+  # https://github.com/bitnami/containers/blob/main/bitnami/kafka/docker-compose.yml
+  kafka:
+    #container_name: kafka
+    #user: "${DUID}:${DGID}"
+    #user: "nobody"
+    #command: id
+    stop_grace_period: 54s
+    platform: linux/amd64
+    image: bitnami/kafka:latest
+    deploy: #ignored by compose
+      mode: global
+    #ports:
+    #  - 9092:9092
+    expose: 
+      - 9092
+    environment:
+      - KAFKA_BROKER_ID=1
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - BOOTSTRAP_SERVERS=kafka:9092
+      #without zookeeper - KRaft  https://github.com/bitnami/containers/issues/4315  https://github.com/apache/kafka/tree/trunk/config/kraft
+      - KAFKA_ENABLE_KRAFT=yes
+      #- KAFKA_KRAFT_CLUSTER_ID=112233-needs-be-uuid - if more than one kafka in cluster
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      #- KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT   #all mapped to PLAINTEXT by default
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      #the 1@ above must match KAFKA_BROKER_ID
+      #- BITNAMI_DEBUG=yes
+    #volumes:
+    #  - $PWD/data/kafka:/bitnami/kafka
+
+# vim:ts=4:sw=4:expandtab

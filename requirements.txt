@@ -1,0 +1,3 @@
+edn-format
+requests
+faker

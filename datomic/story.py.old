@@ -1,0 +1,417 @@
+
+'''
+notes:
+https://forum.datomic.com/t/attribute-naming-conventions/835/8
+https://clojurians-log.clojureverse.org/datomic/2020-04-01
+
+'model the relations (attrs) , not the entities (tables)'
+'''
+
+import edn_format
+edn_format.Keyword.__repr__ = edn_format.Keyword.__str__
+#edn_format.Keyword.__hash__ = lambda me: hash( str(me))
+edn_format.Keyword.__lt__ = lambda s,o: str(s)<str(o)
+from datomic.schema import *
+import datetime
+from pprint import pprint
+
+enum_country_ISO3166 = [ s.enum, doc( 'of country_ISO3166')]
+import base.qsyntax as qs
+
+dict = qs.dictAttr
+aspects = dict(
+    client = dict(
+        your_reference = s.str,     #uniq-with-account?
+        account     = [ s.ref, doc( 'to account') ],    #= _accounts ??
+        ),
+    )
+sh = dict(
+    person = dict(
+        given_names= s.str,
+        surname = s.str,
+        title   = s.str,
+        gender  = [ s.enum, doc( 'of gender_type') ],   #ref-enum-sex: m f x none/u
+        date_of_birth   = s.datetime, # "1991-04-22" ISO-8601
+        date_of_death   = s.datetime, # "1991-04-22"
+        #place_of_birth: { "city": "Prague", "country": "CH" },
+        #place_of_death: { "city": "Prague", "country": "CH" },
+        nationality     = enum_country_ISO3166, # ref-enum-countries "IT" ISO-3166
+        ),
+    organisation = dict(
+        name    = s.str,
+        type    = [ s.str, doc( 'like: Ltd, GmbH, etc') ],    #enum?? unlikely
+        ),
+    )
+sh.update(
+    entity = dict(
+        is_organisation = s.bool,
+        #from person+organisation
+        country_of_residence = enum_country_ISO3166, #:country_ISO3166: "IT"   ISO-3166
+        #derived from country_of_residence but stored - as deriving-rules may change in time
+        territory   = [ s.enum, doc( 'of territory_system')],   # "IT" "ROW"  subset of ISO-3166 + EUZ NEZ ROW
+
+        #from entity
+        address     = [ s.ref, s.many, doc( 'to address'), s.isComponent ],     #isComponent: auto-pull/del-recursive
+        contact     = [ s.ref, s.many, doc( 'to contact'), s.isComponent ],
+        #bank_account = s.many, s.ref, to bank_account, isComponent
+        id          = [ s.str, s.ident ],  #id : "893R3PQ0"
+        relation    = [ tuple_many_types( s.enum, s.ref), s.many, doc( 'of enum=relation_type, ref=entity') ],
+        #others: _accounts _files _customers source
+
+        #from customer
+        custid      = [ s.str, s.ident ],  #id : "cus-882GJAV28933STY0"
+        #metadata    = [ s.ref, s.many,), #XXX tuple_many_types? or ref-to-obj ?
+        metadata    = [ tuple_many_types( s.enum, s.str), s.many, doc( 'of enum=metadata_customer_types, value') ],     # non-system classification ?
+        #events?
+        **aspects.client,
+        ),
+    account = dict(
+        id  = [ s.str, s.ident ],   #acc-882GJAV2
+        name = s.str,
+        active = s.bool,
+        #... lots of.. ecollect-v2-core/app/crud/manage/account.js
+        ),
+
+    address = dict(  # validation/schemas/system/Address.system.schema.json
+        lines   = [ s.str, s.many ], #[ "VIA QUADRONNO 34" ] ,
+        city    = s.str,    #"MILANO" ,
+        country = enum_country_ISO3166,   #:country_ISO3166: "IT" ,
+        zip     = s.str,    #"20122"    postalcode?
+        #district= s.str,
+        state   = s.str,
+        type    = [ s.enum, doc( 'of address_type')], # "not_specified" "billing" "mailing" "delivery" "residence"
+        #delivery_instruction = s.str,
+
+        #these as of contact - or as aliases of those
+        #status      = s.enum, #active inactive -> bool ?
+        #valid       = s.bool,
+        #confirmed   = s.bool,
+        #primary     = s.bool,
+        #byCreditor = s.bool,
+		#owner_label = s.enum, #:owner_label: personal employer parents relative lawyer legal_guardian consumer_protector debt_advisor workplace
+        #source = s.str, #s.enum? : "validation:address"
+        ),
+    contact = dict(     # validation/schemas/system/Contact.system.schema.json
+        type    = [ s.enum, doc( 'of contact_type') ], #: phone , email
+        value   = s.str,
+        country = enum_country_ISO3166,   #:country_ISO3166: "IT" , ??     from address ?
+        ),
+    #bank_account = also kind of contact... #validation/schemas/bankAccount.json validation/schemas/system/BankAccount.system.schema.json
+    metacontact = dict(
+        #these.. common for address, contact, maybe bank_account might be part of has-contact relation
+        #status      = s.enum, #active inactive -> bool ?
+        active      = s.bool, #from status=active inactive -> bool ? is this used ?
+        valid       = s.bool,
+        confirmed   = s.bool,
+        primary     = s.bool,
+        #byCreditor = s.bool,
+		#owner_label = s.enum, #:owner_label: personal employer parents relative lawyer legal_guardian consumer_protector debt_advisor workplace
+        #source = s.str, #s.enum? : validation:phone validation:address
+        ),
+    )
+
+#pprint( sh, sort_dicts=False)
+sh1c = cook( sh)   # -> list of dict-per-item
+check( sh1c)
+#sh1c.sort( key= lambda x: x[ ns_db.ident] )
+pprint( sh1c)
+if 10:
+
+    enums = qs.dictAttr(
+        #address_type    = make_enum( 'address', 'billing mailing delivery residence'),
+        country_ISO3166 = make_enum( 'country', 'NZ IT DE BG RO AU'),
+        gender_type     = make_enum( 'gender',  'm f x'),
+        contact_type    = make_enum( 'contact', '''
+            email phone cellphone''' + 0*''' sms fax
+                    skype facebook_messenger imessage whatsapp viber
+                    facebook google+ twitter linkedin xing badoo
+                    social_various website_url web_various other
+                    '''),
+        #owner_label    = make_enum( 'owner_label', 'personal employer parents relative lawyer legal_guardian consumer_protector debt_advisor workplace'),  #non-system-classification ?
+        territory_system= make_enum( 'territory', 'DE BG  EUZ NEZ ROW'), #derived from country_of_residence but stored in db ; as deriving-rules may change later
+        relation_type   = make_enum( 'relation', # ECOLLECTV2/ecollect-v2-core/app/validation/schemas/relationType.json
+                    ''' is_parent_of_child    is_sibling_of_sibling
+                    ''')
+        )
+    #pprint( enums)
+    '''
+    can be flat:
+        *entity, *client, *person, *organisation,
+        -> can be both person and org
+    can be 2-level:
+        *entity, *client,
+        who = ref to separate-person OR separate-organisation , isComponent
+    '''
+
+    #aspects:
+    import itertools
+    def recipe( sh, *items):
+        if len(items)==1 and isinstance( items[0], str): items = items[0].split()
+        r = {} #dict( ((k,sh[k]) for k in items if '.' not in k )
+        for i in items:
+            if '.' not in i:
+                r[i] = sh[i]   #whole
+                continue
+            pfx,name = i.split( '.')
+            r.setdefault( pfx,{})[ name] = sh[ pfx ][ name]
+        return r
+
+    objattrs = dict(
+        entity = recipe( sh, 'person organisation entity '),
+        address= recipe( sh, 'address metacontact'),
+        contact= recipe( sh, 'contact metacontact'),    #address.country
+        account= recipe( sh, 'account')# meta.active'),
+        )
+    #pprint( objattrs)
+
+    #from collections import Counter
+
+    def flatten( recipe):
+        allattrs = list( itertools.chain(
+            *([(aspect,a) for a in attrs]
+            for aspect,attrs in recipe.items()
+            )))
+    #    print( allattrs)
+        #counts = Counter( allattrs)
+        #dups = dict( (k,n) for k,n in counts.items() if n>1)
+        assert len( allattrs) == len(set( allattrs)), allattrs  #duplicates
+
+        name2pfxs = {}
+        for p,n in allattrs:
+            name2pfxs.setdefault( n, []).append( p)
+        nonsingles = [ n for n,pp in name2pfxs.items() if len(pp) >1 ]
+        return dict( pfx_names= allattrs, name2pfxs= name2pfxs, nonsingle_names =nonsingles)
+
+    objattrs_maps = dict( (oname,flatten(o2a)) for oname,o2a in objattrs.items())
+    pprint( objattrs_maps)
+
+
+    def make_obj( _oname, **attrs):
+        maps = objattrs_maps[ _oname]   #p,n
+        flats = maps.pfx_names
+        name2pfxs = maps.name2pfxs
+        nonsingles = maps.nonsingle_names
+        r = {}
+        for k,v in attrs.items():
+            assert isinstance( k, str), k
+            pn = tuple( k.split( '__'))
+            assert len(pn)<=2, f'max 2 levels: {k}'
+            if len(pn)<2:
+                assert k not in nonsingles, f'ambigious pfxs {nonsingles[k]}: {k}'
+                pn = name2pfxs[ k ][0], k
+            if k != 'db__id':   #XXX extra
+                assert pn in flats, f'unknown: {pn}'
+            r[ qs.kw2( *pn) ] = v
+        return r
+
+    ns = qs.kw2
+
+    if 0:
+        objs1 = qs.dictAttr(
+        e1 = {
+            ns.entity.id : 'uuid123',
+            ns.entity.country_of_residence: ns.country.BG,
+            ns.entity.territory: ns.territory.BG,
+            ns.person.gender: ns.gender.m,
+            ns.person.given_names: 'pen cho',
+            ns.person.surname:  'surnamev',
+            ns.person.date_of_birth:  datetime.date( year=1999, day=14, month=4),
+            ns.entity.account: 'p2ac1',
+            },
+        e1b = {
+            ns.entity.address: 'p2adr1',
+            ns.entity.contact: [ 'p2pho2', 'p2ema3' ],
+            ns.entity.relation: [ ns.relation_type.is_sibling_of_sibling, 'p2e2' ],
+            },
+        ac1 = {
+            ns.db.id: 'p2ac1',
+            ns.account.id: 'acc1',
+            },
+        adr1 = {
+            ns.db.id: 'p2adr1',
+            ns.address.country: ns.country.BG,
+            ns.address.lines:   [ 'lin1', 'lin 2.' ],
+            ns.address.city:    'neidesi',
+            ns.contact.primary: True,
+            },
+        pho2 = {
+            ns.db.id: 'p2pho2',
+            ns.address.country: ns.country.BG,
+            ns.contact.type:    ns.contact_type.phone,
+            ns.contact.value:   '33445566',
+            ns.contact.confirmed: False,
+            ns.contact.primary: True,
+            },
+        ema3 = {
+            ns.db.id: 'p2ema3',
+            ns.contact.type:    ns.contact_type.email,
+            ns.contact.value:   'em@ail.to',
+            ns.contact.confirmed: True,
+            },
+        e2 = {
+            ns.db.id: 'p2e2',
+            ns.entity.id : 'uuid234',
+            ns.entity.country_of_residence: ns.country.NZ,
+            ns.entity.territory: ns.territory.ROW,
+            ns.person.gender: ns.gender.m,
+            ns.person.given_names: 'cho pen',
+            ns.person.surname:  'muzevv',
+            ns.person.date_of_birth:  datetime.date( year=1990, day=24, month=2),
+            ns.entity.account: 'p2ac1',
+            ns.entity.contact: [ 'p2ema3' ],
+            ns.entity.relation: [ ns.relation_type.is_sibling_of_sibling, 'p2e1' ],
+            },
+        )
+        if 0*'all-in-one':
+            log( db.save, objs1.values())
+        if 0*'part1':
+            log( db.save, [ e1, objs1.ac1] )
+
+    #create/update
+    objs2 = dict(
+        e1 = make_obj( 'entity',
+            id = 'uuid123',
+            country_of_residence= ns.country.BG,
+            territory= ns.territory.BG,
+            gender= ns.gender.m,
+            person__given_names= 'pen cho',
+            person__surname=  'surnamev',
+            person__date_of_birth=  datetime.date( year=1999, day=14, month=4),
+            account= 'p2ac1',   #tmp-name for inside this tx
+            ),
+        ac1 = make_obj( 'account',
+            db__id= 'p2ac1',
+            id= 'acc1',     #what if exists?
+            ),
+        e1b = make_obj( 'entity',   #XXX #update/add-substuff
+            db__id =None,   # needs db__id = some-entity1.dbid
+            address= 'p2adr1',
+            contact= [ 'p2pho2', 'p2ema3' ],
+            relation= [ ns.relation_type.is_sibling_of_sibling, 'p2e2' ],
+            ),
+        adr1 = make_obj( 'address',
+            db__id= 'p2adr1',
+            country= ns.country.BG,
+            lines=   [ 'lin1', 'lin 2.x' ],
+            city=    'neidesi',
+            primary= True,
+            ),
+        adr2 = make_obj( 'address',
+            db__id= 'p2adr2',
+            country= ns.country.NZ,
+            lines=   [ 'lin5', 'lin3' ],
+            city=    'tam',
+            primary= True,
+            ),
+        pho2 = make_obj( 'contact',
+            db__id= 'p2pho2',
+            country= ns.country.BG,
+            type=    ns.contact_type.phone,
+            value=   '33445566',
+            confirmed= False,
+            primary= True,
+            ),
+        ema3 = make_obj( 'contact',
+            db__id= 'p2ema3',
+            type=    ns.contact_type.email,
+            value=   'em@ail.to',
+            confirmed= True,
+            ),
+        e2 = make_obj( 'entity',
+            db__id= 'p2e2',
+            id = 'uuid234',
+            country_of_residence= ns.country.NZ,
+            territory= ns.territory.ROW,
+            gender= ns.gender.m,
+            given_names= 'cho pen',
+            surname=  'muzevv',
+            date_of_birth=  datetime.date( year=1990, day=24, month=2),
+            account= 'p2ac1',
+            contact= [ 'p2ema3' ],
+            relation= [ ns.relation_type.is_sibling_of_sibling, 'p2e1' ],
+            ),
+        )
+
+    pprint( objs2.e1b)
+    if 0: #check if all same
+        translations = dict( (ns('meta',k),ns('contact',k)) for k in sh.meta )
+        def translate( o):
+            return dict( (translations.get( k,k),v) for k,v in o.items())
+        assert set(objs1) == set(objs2)
+        for x,y in zip( sorted( objs1.items()), sorted(objs2.items())):
+            x = x[0],translate(x[1])
+            y = y[0],translate(y[1])
+            assert x==y, (x,y)
+        #assert objs1 == objs2
+    #assert 0
+
+if 0:
+    if 1:
+        from datomic.dbclient import Datomic, log, edn_dumps
+        db = Datomic( 'http://localhost:8992', 'devv', 'bdbname')
+    if 0:
+        log( db.create_db)
+        log( db.save, sh1c )
+    if 0:
+        for e,evalues in enums.items():
+            log( db.save, evalues)
+
+    if 1:
+        from datomic.qsyntax import daq, var, sym, pull, var_attr_value
+        if 10: #get all client-accounts, and get their pointed-by entities
+            qacc = daq().find(
+                pull( var.accid, ns.account.id,
+                    ns.entity._account     #v1a
+                    #{ ns.entity._account: [ qs.sym_wild, ns.person.surname ] }     #v1b
+                    )
+                ).where(
+                    var_attr_value( var.accid, ns.account.id),
+                )
+        if 10: #get some entity under some account
+            qent1 = daq().find(
+                pull( var.entid, ns.db.id, ns.entity.id, ns.entity.is_organisation)
+                ).where(
+                    var_attr_value( var.entid, ns.entity.account),
+                )
+
+        if 10: #get some entity under some account
+            qentid = daq().find(
+                pull( var.inid, whole=True)
+                ).in_( var.inid
+                )
+
+        if 0: #get some ent, deref enum territory
+            q2 = daq().find( pull( var.eid,
+                    qs.sym_wild,
+                    #{ ns.entity.address: [
+                    #    qs.sym_wild,
+                    #    { ns.address.country: [ ns.db.ident ] }
+                    #    ]
+                    #}
+                    { (ns.entity.territory, qs.kw.xform, qs.sym('myns/get_dbident')) : [ ns.db.ident ]}
+                    #{ ns.entity.territory: [ ns.db.ident ]}    #or this + walk-recursively replacing { dbident: x } with x
+                    ) #whole=True)d
+                #).in_( var.iid
+                ).where(
+                    var_attr_value( var.eid, ns.entity.id, )#var.iid ),
+                )
+        #    run( q2, ) #entid )
+
+        def run( q, pfx='', limit =3, **ka):
+            print( pfx, ':', edn_dumps( q), ka)
+            r = db.query( q, limit= limit, **ka)
+            pprint( r)
+            return r
+
+        r = run( qent1, 'ents' )
+        entid = r[0][0][ str( ns.db.id) ]
+        if 10*'part2-update-add-addr1':
+            log( db.save, [ make_obj( 'entity',
+                db__id= entid,
+                address= [objs2.adr2[ ns.db.id ], objs2.adr1[ ns.db.id ],]
+                ), objs2.adr2, objs2.adr1 ] )
+
+        pprint( db.entity( entid))
+        pprint( db.query( qentid, entid ))
+
+# vim:ts=4:sw=4:expandtab

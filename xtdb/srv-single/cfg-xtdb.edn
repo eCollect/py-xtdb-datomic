@@ -1,0 +1,11 @@
+{
+ :xtdb.http-server/server {:port 3001}
+ ;; NOTE Comment these to have an in-memory system:	 (btw comma is ignored=whitespace)
+ :xtdb/index-store         {:kv-store {:xtdb/module xtdb.rocksdb/->kv-store , :db-dir "data/index-store"}}
+ :xtdb/tx-log              {:kv-store {:xtdb/module xtdb.rocksdb/->kv-store , :db-dir "data/tx-log"}}
+ :xtdb/document-store      {:kv-store {:xtdb/module xtdb.rocksdb/->kv-store , :db-dir "data/document-store"}}
+ :xtdb.lucene/lucene-store {:db-dir "data/lucene"
+	;; 	:indexer xtdb.lucene.multi-field/->indexer	;;for multi-field lucene-text-search
+ 		}
+ ;; :xtdb.metrics.console/reporter {:report-frequency "PT10S"}
+ }

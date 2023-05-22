@@ -1,0 +1,48 @@
+* schema
+	+ datomic has schema, only schema-registered attributes can be saved
+	- xtdb - no schema at all BUT needs EXTERNAL obj.id=xt/id 
+	* cardinality
+		* cardinality.many in datomic produces set/unordered ;
+			- needs field to orderby
+			* add value=1item -> adds it to set ; add value=items -> adds them to set
+		* xtdb - no schema, saves whole doc and produces new version (cardinality = whatever data comes in)
+			+ order is preserved
+	* "enums":
+		~ datomic's suggested representation is: as refs to pre-made ident-only-objs ; entity() derefs them but query()/pull DOES NOT, needs extra func/walk
+		else - str or keywords or whatever, does not matter, no diff in treatment
+		-> maybe represent as namespaced keywords and forget refs ?
+
+* orderby
+ - datomic: none, needs artificial stuff
+ + xtdb: has
+
+* granularity:
+	- datomic can add/change single attr
+		* can have per-attr old-value-check / optimistic lock
+	 	* may need "version-of-whole-obj" optimistic lock
+	- xtdb uses whole docs - read-modify-write
+	 	* may need "version-of-whole-obj" optimistic lock
+	- in both, any separate components/sub-structs need management for version-of-whole-obj
+
+* auto-id
+	+ datomic will autoinvent obj.id=db/id if not given or not found -> deemed temporary
+	- xtdb does not - obj.id=xt/id needs be externaly EXPLICITLY given at create
+    	#each document MUST have xt/id key
+	    #XXX further sub-struct levels may have that too but it is just data there (tested)
+
+https://docs.xtdb.com/resources/faq/#comparisons
+
+
+
+########################
+
+
+# XXX WTF: Datomic: All clauses in 'or' must use same set of vars, had [#{?idt} #{?x}]
+        query( daq().find(
+            pull( var.x),
+            ).where(
+                    eav( var.x, ns.db.ident, var.idt),
+                    notall( orany( pred_startswith( var.idt, ':db'),
+                        eav( var.x, ns.db.valueType),
+                        ))
+	-> the noop in each leg..

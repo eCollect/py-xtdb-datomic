@@ -1,0 +1,53 @@
+name: ok
+
+#for linux: on the host, chmod a+rwx -R ./data  XXX as nothing else works
+services:
+
+  pg:   #https://hub.docker.com/_/postgres
+    extends:
+        service: postgresql
+        file: ./dc_lib.yaml
+    #ports:
+    #  - 5432:5432
+    #memory ????
+    #environment:
+    #..
+
+  chkpt:
+    extends:
+        service: chkpt
+        file: ./checkpointkeeper.yml
+    volumes:
+        - $PWD/data/chkpt/index:/cp_index
+        - $PWD/data/chkpt/lucene:/cp_lucene
+
+  xtdb-1: &xtdbcfg
+    extends:
+        service: xtdb-1
+        file: ./dc_lib.yaml
+    depends_on:
+      - pg
+
+  xtdb-2:
+    <<: *xtdbcfg
+    extends:
+        service: xtdb-2
+        file: ./dc_lib.yaml
+
+#  xtdb-3:
+#    <<: *xtdbcfg
+#    extends:
+#        service: xtdb-3
+#        file: ./dc_lib.yaml
+#  xtdb-4:
+#    <<: *xtdbcfg
+#    extends:
+#        service: xtdb-4
+#        file: ./dc_lib.yaml
+#  xtdb-5:
+#    <<: *xtdbcfg
+#    extends:
+#        service: xtdb-5
+#        file: ./dc_lib.yaml
+
+# vim:ts=4:sw=4:expandtab

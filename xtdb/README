@@ -1,0 +1,27 @@
+ready:
+  dbclient.py
+  qsyntax.py
+  test*
+maybe: 
+  lucene.py
+
+all else is still in flux, see ./makefile and ../makefile
+
+
+########## sources and some known usages
+
+github.com/xtdb/xtdb
+
+github.com/minvws/nl-kat-octopoes
+edn-config is in:
+nl-kat-octopoes/setup-xtdb.sh 	-> nl-kat-octopoes/packaging/deb/data/usr/share/kat-octopoes/scripts/setup-xtdb.sh
+
+github.com/odpi/egeria-connector-xtdb
+ec-ha-xtdb 			-> egeria-connector-xtdb/cts/charts/ec-ha-xtdb/
+bootstrapConfig.sh 	-> ec-ha-xtdb/bin/bootstrapConfig.sh*
+#egeria-cfg-xtdb.edn -- extracted from above egeria-connector-xtdb/./cts/charts/ec-ha-xtdb/bin/bootstrapConfig.sh
+txnfns 				-> egeria-connector-xtdb/connector/src/main/java/org/odpi/egeria/connectors/juxt/xtdb/txnfn/
+xtdb 				-> egeria-connector-xtdb/connector/src/main/java/org/odpi/egeria/connectors/juxt/xtdb/
+
+#py: no
+# github.com/joefromct/py-xtdb/tree/main/py_xtdb

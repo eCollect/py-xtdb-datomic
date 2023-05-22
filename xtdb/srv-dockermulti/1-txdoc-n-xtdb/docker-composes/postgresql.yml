@@ -1,0 +1,32 @@
+name: postgresql
+services:
+  pg:   #https://hub.docker.com/_/postgres     ..how about locales??
+    image: postgres:15
+    restart: unless-stopped
+    #ports:
+    #  - 5432:5432
+    expose:
+      - 5432
+    #memory ????
+    environment:
+      - POSTGRES_PASSWORD=bxtdb
+      - POSTGRES_USER=axtdb #superuser, default is postgresql
+      - POSTGRES_DB=xtdb    #default to $POSTGRES_USER
+      # postgres://user:pass@pg:5432/db?sslmode=disable
+      - PGDATA=/pg_data     # /where/data/is , default /var/lib/postgresql/data
+      # - POSTGRES_INITDB_ARGS – Sends arguments to postgres_initdb
+      # - POSTGRES_INITDB_WALDIR – directory for transaction log
+      # - POSTGRES_HOST_AUTH_METHOD - auth-method for host connections to databases, users, and addresses
+      # - POSTGRES_PASSWORD_FILE
+    #volumes:
+    #  - $PWD/data/pg:/pg_data
+    #  - $PWD/data/pg:/var/lib/postgresql/data
+# what's this? around postgresql ??
+#  adminer:
+#   image: adminer
+#   restart: always
+#   ports:
+#       - 8080:8080
+
+
+# vim:ts=4:sw=4:expandtab

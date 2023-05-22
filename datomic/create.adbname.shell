@@ -1,0 +1,4 @@
+uri = "datomic:dev://localhost:4334/adbname" ;
+Peer.createDatabase(uri) ;
+conn = Peer.connect(uri) ;
+exit();
