@@ -1,0 +1,56 @@
+db cardinality
+
+------- o2m
+A.bb = o2m.B
+a1 -> b1,b2 == can a1-b1 and a1-b2 && cannot also a2-b1 or a2-b2
+= coll
+a1.bb = [ b1,b2 ] and cannot also a2.bb = [ b1 ] or a2.bb = [ b2 ]
+= fk
+b1._A_bb = a1
+b2._A_bb = a1
+
+------- m2o
+A.b = m2o.B
+a1,a2 -> b1 == can a1-b1 and a2-b1 and cannot also a1-b2 or a2-b2
+= fk
+a1.b = b1
+a2.b = b1
+= coll
+b1._A_b = [ a1,a2 ] and cannot also b2._A_bb = [ a1 ] or b2._A_bb = [ a2 ] 
+
+------- m2m
+A.bb = m2m( B) #direct 
+a1-b1 a1-b2 a2-b1 a2-b2
+= coll
+a1.bb = [ b1,b2 ]
+a2.bb = [ b1,b2 ]
+= coll
+b1._A_bb = [ a1,a2 ]
+b2._A_bb = [ a1,a2 ]
+
+---
+A.bb = m2m( B, via= M) #indirect 
+M.a = m2o.A
+M.b = m2o.B
+M.uniq(a,b)
+=
+a1.bb = [ m1,m2 ]
+a2.bb = [ m3,m4 ]
+b1._A_bb = [ m1,m3 ]
+b2._A_bb = [ m2,m4 ]
+=
+m1= ( a=a1, b=b2 )
+m2= ( a=a1, b=b2 )
+m3= ( a=a2, b=b1 )
+m4= ( a=a2, b=b2 )
+
+------- o2o
+A.b = o2o.B == m2o.B && A.uniq(b)
+a1 <-> b1 == can a1-b1 and cannot also a1-b2 or a2-b1
+=
+a1.b = b1 && A.b.uniq
+=
+b1._A_b = a1 && B._A_b.uniq
+
+
+# vim:ts=4:sw=4:expandtab
