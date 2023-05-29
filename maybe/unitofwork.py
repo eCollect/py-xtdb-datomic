@@ -15,13 +15,25 @@ def is_link_or_component_non_composite( subschema):
         isinstance( subschema, schema.types.component) and not subschema.embed and not subschema.flatten
         )
 def is_backref_or_forward_ref( subschema):
-    return True #what?  #all become backrefs, i.e. using ForeignKey in subobj   XXX why?
+    #return True #what?  #all become backrefs, i.e. using ForeignKey in subobj   XXX why?
+    #not all.. see ./db-x2y.txt
+    #m2o -> forward_ref
+    #o2m -> backref (enforce the One)
+    #o2o -> backref if component i.e. owned by parent ( more convenient, e.g. update a.b.c = 3 -> update b.c=3 where B._A_b==a.id )
+    #m2m -> backref if indirect/via-submodel ; forward_ref if direct = list( id)
+    if isinstance( subschema, schema.types.component): # and not subschema.embed and not subschema.flatten
+        return True
+    #( isinstance( subschema, schema.types.link)  #m2o, m2m
+    return subschema.many and subschema.indirect #XXX
+
+
+
 def is_multi( subschema):
     return subschema.many
-def set_parent_link_backref( obj, subschema, pointed):
-    obj_set_attr( obj, subschema.name, pointed)     #XXX ?
+def set_parent_link_backref( obj, subschema, parent):
+    obj_set_attr( obj, subschema.name.backref, parent)     #XXX ?
 def del_forward_link( obj, subschema):
-    obj_del_attr( obj, subschema.name)
+    obj_del_attr( obj, subschema.name)  #or mark it as non-saveable
 def walk_schema( obj):
     oschema = get_schema_by_obj_instance( obj)
     for subschema in oschema:
@@ -89,16 +101,12 @@ class unit_of_work:
                     if is_backref:
                         # all subobj-pointing-obj
                         del_forward_link( obj, subschema)
-                        parent_link = obj
-                    else:
-                        # obj-pointing-all-subobj
-                        parent_link = None
-                        pass
+                        #parent_link = obj
 
                     subobjs = subobj if is_multi( subschema) else [ subobj ]
                     for so in subobjs:
                         if parent_link:
-                            set_parent_link_backref( so, subschema, parent_link)
+                            set_parent_link_backref( so, subschema, obj)
                         oldentry = results.find( so )
                         if oldentry:
                             assert oldentry.obj is so, (so, obj_key( so), oldentry)
