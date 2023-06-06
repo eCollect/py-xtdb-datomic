@@ -1,5 +1,6 @@
 from base.rpc_edn_json_http import BaseClient, dict_without_None, hacks, log
 import edn_format
+kw = edn_format.Keyword
 from edn_format import dumps as edn_dumps
 import datetime, json
 
@@ -18,6 +19,34 @@ if RESULT_EDN:
     #TODO json has no tuples ; so tuples in EDN would be lists in json - e.g. outmost result of query
 
 hacks.edn_accept_naive_datetimes()  #tx-as-json
+
+def transit_dumps( x):
+    #print( 333333, x)
+    import collections.abc
+    for c in 'MutableMapping Mapping Hashable'.split():
+        setattr( collections, c, getattr( collections.abc, c))
+    from transit.writer import Writer
+    from transit.write_handlers import KeywordHandler, SymbolHandler, MapHandler
+    from transit.transit_types import Keyword, Symbol
+    from io import StringIO
+    io = StringIO()
+    w = Writer( io, 'json' )
+    class KeywordHandler2( KeywordHandler):
+        @staticmethod
+        def rep(k): return k.name
+        string_rep = rep
+    class MapHandler2( MapHandler):
+        @staticmethod
+        def rep(m):
+            return dict( (Keyword( k) if not isinstance(k, edn_format.Keyword) else k,v)
+                    for k,v in m.items())
+
+    w.register( edn_format.Keyword, KeywordHandler2 ) #w.marshaler.handlers[
+    w.register( edn_format.Symbol,  SymbolHandler ) #w.marshaler.handlers[
+    w.register( dict,  MapHandler2 ) #w.marshaler.handlers[
+    w.write( x )
+    return io.getvalue()
+
 
 class xtdb_read( BaseClient):
     ''' bitemporal append-only-db-in-clojure, graph
@@ -101,15 +130,28 @@ class xtdb_read( BaseClient):
         **BaseClient._headers_content_json,
         }
 
+    is_v2 = False
     def url( me, url ):
-        return super().url( '_xtdb', url )
+        if me.is_v2:
+            return super().url( url )           #v2
+        return super().url( '_xtdb', url )      #v1
+
+    def __init__( me, rooturl, *, v2 =False, **ka):
+        super().__init__( rooturl, **ka)
+        me.is_v2 = bool( v2)
 
     ##### rpc methods
 
     def status( me): return me._get( 'status')
     def stats( me):  return me._get( 'attribute-stats')
-    def latest_completed_tx( me): return me._get( 'latest-completed-tx' )
-    def latest_submitted_tx( me): return me._get( 'latest-submitted-tx' )
+    def latest_completed_tx( me):
+        if me.is_v2:
+            return me.status()[ kw( 'latest-completed-tx' ) ]
+        return me._get( 'latest-completed-tx' )
+    def latest_submitted_tx( me):
+        if me.is_v2:
+            return me.status()[ kw( 'latest-submitted-tx' ) ]
+        return me._get( 'latest-submitted-tx' )
     def active_queries     ( me): return me._get( 'active-queries'      )
     def recent_queries     ( me): return me._get( 'recent-queries'      )
     def slowest_queries    ( me): return me._get( 'slowest-queries'     )
@@ -151,7 +193,7 @@ class xtdb_read( BaseClient):
             data = query
 
         assert isinstance( data, str), data
-        return me._post( 'query',
+        return me._post( 'query' if not me.is_v2 else 'datalog',
                 data= data,
                 **me._params( **params_vti),
                 headers= me._headers_content_edn )
@@ -166,6 +208,7 @@ class xtdb_read( BaseClient):
 
     def sync( me, timeout_ms =None):
         'Wait until the Kafka consumer lag is back to 0 (i.e. when it no longer has pending transactions to write). Returns the transaction time of the most recent transaction.'
+        if me.is_v2: return
         return me._get( 'sync', **me._params(
                     **me._param_timeout_ms( timeout_ms)))
     def await_tx_id( me, tx_id, timeout_ms =None):
@@ -304,22 +347,34 @@ class xtdb( xtdb_read):
         assert isinstance( docs, (list,tuple)), docs
         for d in docs:
             assert isinstance( d, (dict,list,tuple)), d
+
+        if me.is_v2: as_json = False
         docs = [ me.make_tx_put( d, valid_time= valid_time, end_valid_time= end_valid_time, as_json= as_json)
                             if isinstance( d, dict) else list( d)
                     for d in docs ]
         for d in docs:
             assert d[0] in me._transaction_types, d[0]
 
+        kargs = {}
         #TODO edn_dumps+headers
         #XXX returns extra_ok_statuses= [202] processing-offline
-        if as_json:
+
+        if me.is_v2:    #tx-type tablename ..all-else..
+            docs = [ [ edn_format.Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
+            ops = {'tx-ops': docs }     #XXX assume auto key->keyword
+            #ops[ 'opts' ] = {}         #general for whole tx
+            data = transit_dumps( ops)
+            _headers_content_tjson = { 'content-type'  : me._app_json.replace( 'json', 'transit+json') }
+            kargs.update( headers= _headers_content_tjson)
+
+        elif as_json:
             ops = {'tx-ops': docs }
             if tx_time:
                 assert 0, 'this does not work via json' #TODO below edn_dumps.. then try again
                 #tx_time = edn_dumps( tx_time)
                 #tx_time = _tx_time.split( '+')[0]+'Z'#_edn_dumps( tx_time)
                 ops.update( { me.ns_api_name+'submit-tx-opts': { me.ns_api_name+'tx-time': tx_time }} )
-            return me._post( 'submit-tx', data= json.dumps( ops ))
+            data = json.dumps( ops )
         else:
             docs = [ [ me.ns_api_kw( d[0]), *d[1:]] for d in docs ]    #keywordize
             ops = { edn_format.Keyword('tx-ops'): docs }
@@ -327,9 +382,13 @@ class xtdb( xtdb_read):
                 #assert 0, 'this does not work via json' #TODO below edn_dumps.. then try again
                 #tx_time = edn_dumps( tx_time)
                 #tx_time = _tx_time.split( '+')[0]+'Z'#_edn_dumps( tx_time)
-                ops.update( { me.ns_api_kw('submit-tx-opts'): { me.ns_api_kw('tx-time'): tx_time }} )
-            return me._post( 'submit-tx', data= edn_dumps( ops ),
-                headers= me._headers_content_edn )
+                ops[ me.ns_api_kw('submit-tx-opts') ] = { me.ns_api_kw('tx-time'): tx_time }
+            data = edn_dumps( ops)
+            kargs.update( headers= me._headers_content_edn )
+
+        return me._post( 'submit-tx' if not me.is_v2 else 'tx',
+                data= data,
+                **kargs)
 
     write = save = tx = submit_tx
 
@@ -346,8 +405,8 @@ class xtdb( xtdb_read):
     #def ns_api( klas, name, as_json =True):
     #    if as_json: return name
     #    return klas.ns_api_kw( name)
-    @classmethod
-    def make_tx_put( klas, doc, valid_time =None, end_valid_time =None, as_json =True):
+    #@classmethod
+    def make_tx_put( me, doc, valid_time =None, end_valid_time =None, as_json =True):
         ''' https://docs.xtdb.com/language-reference/1.22.1/datalog-transactions/#put
         https://docs.xtdb.com/language-reference/1.22.1/datalog-transactions/#document
         All documents must have xt/id - keyword, str, int, uuid, ..
@@ -355,11 +414,12 @@ class xtdb( xtdb_read):
         no automatics
         #TODO some inside-doc valid/end-time that may or may not be funcs
         '''
-        if as_json:
-            assert doc.get( klas.id_name), doc    #for json
+        if as_json or 1:
+            assert doc.get( me.id_name), doc    #for json
         else:
-            assert doc.get( klas.id_kw), doc    #for edn
-        return [ 'put', dict(doc), *klas._check_tx_end_valid_time( valid_time, end_valid_time)]
+            assert doc.get( me.id_kw), doc    #for edn
+        v2_table = [] if not me.is_v2 else [ 'atablename' ]
+        return [ 'put', *v2_table, dict(doc), *me._check_tx_end_valid_time( valid_time, end_valid_time)]
     @classmethod
     def make_tx_del( klas, eid, valid_time =None, end_valid_time =None):
         return [ 'delete', eid, *klas._check_tx_end_valid_time( valid_time, end_valid_time)]

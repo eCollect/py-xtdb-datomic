@@ -1,0 +1,47 @@
+github: api/src/main/clojure/xtdb/api/protocols.clj
+(def http-routes 
+  [["/status" {:name :status
+               :summary "Status"
+               :description "Get status information from the node"}]
+
+   ["/tx" {:name :tx
+           :summary "Transaction"
+           :description "Submits a transaction to the cluster"}]
+
+   ["/query" {:name :query
+              :summary "Query"}]
+
+   ["/swagger.json" {:name :swagger-json
+                     :no-doc true}]]
+)
+
+
+docker: 
+xtdb/api.clj
+(def http-routes
+  [["/status" {:name :status
+               :summary "Status"
+               :description "Get status information from the node"}]
+
+   ["/tx" {:name :tx
+           :summary "Transaction"
+           :description "Submits a transaction to the cluster"}]
+
+   ["/datalog" {:name :datalog-query
+                :summary "Datalog Query"}]
+
+   ["/sql" {:name :sql-query
+            :summary "SQL"}]]
+)
+
+xtdb/server.clj:
+defmethod route-handler :datalog-query [_] ...
+	application/transit+json
+sql-query: same
+tx: 
+
+
+v2/http-server/src/main/clojure/xtdb/server.clj
+:query 
+	application/transit+json
+

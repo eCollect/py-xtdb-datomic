@@ -51,6 +51,7 @@ https://vvvvalvalval.github.io/posts/2016-01-03-architecture-datomic-branching-r
 
 import os
 URL = os.getenv( 'XTDB') or 'http://localhost:3001'
+V2 = os.getenv( 'XTDB2')
 
 class base:
     maxDiff = None
@@ -58,7 +59,7 @@ class base:
     IS_EDN = dbclient.RESULT_EDN
     @classmethod
     def setUpClass( me):
-        me.db = dbclient.xtdb( URL, headers= me.headers)
+        me.db = dbclient.xtdb( URL, headers= me.headers, v2= V2)
         #me.IS_EMPTY = (me.db.stats() == {})
         #me.db.debug =0
 
@@ -290,8 +291,8 @@ class history( base, unittest.TestCase):
     txid_key = 'txId' #me.db.ns_api_kw('tx-id')],
     def check( me, *, eid, tx=None, qargs ={}, pfx ='', history =(), as_of =None, expect_error_sync =False, **results):
         #obj = history[-1]
-        print( me.db.latest_submitted_tx())
-        print( me.db.latest_completed_tx())
+        ##print( me.db.latest_submitted_tx())   TODO
+        ##print( me.db.latest_completed_tx())
         #me.db.await_tx_id( (as_of or tx)[ me.txid_key] )
         me.db.sync()
         if as_of:

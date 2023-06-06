@@ -25,3 +25,16 @@ xtdb 				-> egeria-connector-xtdb/connector/src/main/java/org/odpi/egeria/connec
 
 #py: no
 # github.com/joefromct/py-xtdb/tree/main/py_xtdb
+
+++++++++++++++++++++++++++
+
+v2:
+https://www.xtdb.com/v2
+https://www.xtdb.com/reference
+git clone -b 2.x --single-branch https://github.com/xtdb/xtdb/
+
+#older: http=3001 pg=5432 flightsql=9832
+docker pull ghcr.io/xtdb/xtdb-ea
+docker run -ti --rm -p 5432:5432 -p 9832:9832 -p 3001:3000 ghcr.io/xtdb/xtdb-ea
+
+

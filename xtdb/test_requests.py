@@ -13,7 +13,9 @@ if 1:
     NonCallableMock._format_mock_failure_message = _myformat_mock_failure_message
 
 import os
-URL = os.getenv( 'XTDB') or 'http://localhost:3001'
+URLROOT = os.getenv( 'XTDB') or 'http://localhost:3001'
+V2 = bool( os.getenv( 'XTDB2'))
+URL = URLROOT.rstrip('/') + ('' if V2 else '/_xtdb')
 HEADERS = {'accept': 'application/edn', 'content-type': 'application/json'}
 
 class Gets( unittest.TestCase):
@@ -23,7 +25,7 @@ class Gets( unittest.TestCase):
     assert qs.edn_format.dumps( datetime) == datetext_edn
 
     def setUp(self):
-        self.db = xtdb( URL)
+        self.db = xtdb( URLROOT, v2= V2)
         #self.fake = base.rpc_edn_json_http.requests.get = MagicMock(return_value='x')
         self.fakeget = patch( 'base.rpc_edn_json_http.requests.get') # = MagicMock(return_value='x')
         self.fake = self.fakeget.start()
@@ -37,12 +39,12 @@ class Gets( unittest.TestCase):
 
         self.db.status()
         # print(11111, fake.mock_calls)
-        self.fake.assert_called_once_with( f'{URL}/_xtdb/status', headers=HEADERS)
+        self.fake.assert_called_once_with( f'{URL}/status', headers=HEADERS)
 
     def test_entity(self, method ='entity', suburl ='entity'):
         ''' passing eid=non-str moves+converts it into eid-edn=.. - testing the _params_eid+_params_cleaner checker/converter'''
         entity = getattr( self.db, method)
-        URLentity = f'{URL}/_xtdb/{suburl}'
+        URLentity = f'{URL}/{suburl}'
         self.db._response = lambda x:x
         self.fake.return_value = 'f'
 
@@ -141,7 +143,7 @@ class Gets( unittest.TestCase):
     def test_entity_history(self):
         self.fake.return_value = 'f'
         self.db._response = lambda x:x
-        URLentity = f'{URL}/_xtdb/entity'
+        URLentity = f'{URL}/entity'
         entity_history = self.db.entity_history
 
         entity_history( eid=123, start_valid_time= self.datetime)
@@ -166,12 +168,12 @@ class Gets( unittest.TestCase):
         with self.assertRaisesRegex( AssertionError, 'needs exactly one of'):
             entity_history()
 
-URLquery = f'{URL}/_xtdb/query'
+URLquery = f'{URL}/query'
 HEADERSedn = {'accept': 'application/edn', 'content-type': 'application/edn'}
 
 class Posts(unittest.TestCase):
     def setUp(self):
-        self.db = xtdb( URL)
+        self.db = xtdb( URLROOT, v2= V2)
         self.fake = base.rpc_edn_json_http.requests.post = MagicMock(return_value='x')
         self.datetext = '2023-01-11T11:37:07.649'
         self.datetime = datetime.datetime.fromisoformat( self.datetext)

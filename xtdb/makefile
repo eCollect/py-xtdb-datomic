@@ -1,6 +1,8 @@
+now: a b
 a:
-	cd .. && python -m xtdb.test_requests
-	cd .. && python -m xtdb.testdb
+	-cd .. && python -m xtdb.test_requests
+b:
+	-cd .. && python -m xtdb.testdb
 #	PYTHONPATH=.. python testdb.py
 
 #no:
