@@ -26,13 +26,11 @@ def is_backref_or_forward_ref( subschema):
     #( isinstance( subschema, schema.types.link)  #m2o, m2m
     return subschema.many and subschema.indirect #XXX
 
-
-
 def is_multi( subschema):
     return subschema.many
 def set_parent_link_backref( obj, subschema, parent):
     obj_set_attr( obj, subschema.name.backref, parent)     #XXX ?
-def del_forward_link( obj, subschema):
+def hide_forward_link( obj, subschema):
     obj_del_attr( obj, subschema.name)  #or mark it as non-saveable
 def walk_schema( obj):
     oschema = get_schema_by_obj_instance( obj)
@@ -100,7 +98,7 @@ class unit_of_work:
 
                     if is_backref:
                         # all subobj-pointing-obj
-                        del_forward_link( obj, subschema)
+                        hide_forward_link( obj, subschema)
                         #parent_link = obj
 
                     subobjs = subobj if is_multi( subschema) else [ subobj ]
@@ -128,9 +126,6 @@ https://stackoverflow.com/questions/67482155/what-are-standard-architectural-pat
 topology-sort ??? forward_ref needs subobj-first, backref needs obj first
 '''
 #TODO check  graphlib.TopologicalSorter - since v3.9
-
-    def build2( me):
-        assert me.ins
 
 
 #TODO tests.. seems needs TDD

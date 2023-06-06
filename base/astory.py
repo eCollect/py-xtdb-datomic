@@ -13,7 +13,7 @@ aspects = dictAttr(
         account = s.link( 'account', required= True) ,    #= _accounts ??
         ),
     metacontact = struct(
-        #these.. common for address, contact, maybe bank_account might be part of has-contact relation
+        #these.. common for address, contact, maybe relation, maybe bank_account might be part of has-contact relation
         #status      = s.enum, #active inactive -> bool ?
         active      = s.bool, #from status=active inactive -> bool ? is this used ?
         valid       = s.bool,
@@ -22,6 +22,7 @@ aspects = dictAttr(
         #byCreditor = s.bool,
 		#owner_label = s.enum, #:owner_label: personal employer parents relative lawyer legal_guardian consumer_protector debt_advisor workplace
         #source = s.str, #s.enum? : validation:phone validation:address
+        #reason = s.str     #setContactConfirmed
         ),
     )
 sh = dictAttr(
@@ -57,6 +58,7 @@ sh = dictAttr(
         relations   = s.component( struct(
             type = s.enum( 'relation_type'),
             entity = s.link( 'entity'),
+            #also: confirmed source reason... not a full metacontact
             ), many= True, embed=True),
         #others: _accounts _files _customers source
 
