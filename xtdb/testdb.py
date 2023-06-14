@@ -1,5 +1,6 @@
-from . import dbclient #, qsyntax as qs
-from .qsyntax import var, var2, sym, sym2, kw, kw2, xtq, var_attr_value, pull, range_predicate
+from . import dbclient
+from . import db2
+from .qsyntax import var, var2, sym, sym2, kw, kw2, xtq, var_attr_value, pull, range_predicate, predicate
 from . import qsyntax as qs
 from base.qsyntax import _text2dumps1line, edn_dumps, dictAttr
 import edn_format
@@ -59,12 +60,12 @@ class base:
     IS_EDN = dbclient.RESULT_EDN
     @classmethod
     def setUpClass( me):
-        me.db = dbclient.xtdb( URL, headers= me.headers, v2= V2)
+        me.db = (db2.xtdb2 if V2 else dbclient.xtdb )( URL, headers= me.headers)
         #me.IS_EMPTY = (me.db.stats() == {})
         #me.db.debug =0
 
     def result( me, *r):
-        'edn-tuples are json-lists'
+        'edn-tuples are json-lists'     #TODO ?
         if not me.IS_EDN and isinstance( r, tuple): r = list( r)
         return r
     if 0:
@@ -85,21 +86,53 @@ class base:
 
 class x( base, unittest.TestCase):
     #@classmethod
-    def setUp( me):
-        me.db.debug =0
+    #def setUp( me):
+    #    me.db.debug =0
 
     def test_status( me):
-        s = me.db.status()
-        if me.IS_EDN:
+        if V2:
             exp_keys = set('''
-            xtdb.version/version xtdb.version/revision xtdb.kv/kvStore xtdb.kv/size xtdb.index/indexVersion
-            '''.split())
+                latestCompletedTx
+                latestSubmittedTx
+                '''.split())
+        elif me.IS_EDN:
+            exp_keys = set('''
+                xtdb.version/version
+                xtdb.version/revision
+                xtdb.kv/kvStore
+                xtdb.kv/size
+                xtdb.index/indexVersion
+
+                ingesterFailed?
+                xtdb.txLog/consumerState
+                xtdb.kv/estimateNumKeys
+                '''.split())
         else:
             exp_keys = set('''
-            version revision kvStore size indexVersion
-            '''.split())
-        me.assertEqual( set(s) & exp_keys, exp_keys , s)
+                version
+                revision
+                kvStore
+                size
+                indexVersion
 
+                ingesterFailed?
+                consumerState
+                estimateNumKeys
+                '''.split())
+
+        s = me.db.status()
+        me.assertEqual( set(s) , exp_keys , s)  # & exp_keys
+        if V2:
+            txkeys = 'txId systemTime'.split()
+            #these can be None if empty db
+            for k in exp_keys:
+                v = s[ k ]
+                if v is not None:
+                    me.assertEqual( set( v), set( txkeys), k)
+        #import pprint
+        #pprint.pprint( me.db.swagger_json())
+
+    @unittest.skipIf( V2, 'not in v2')
     def itest_stats( me, IS_EMPTY =None):
         s = me.db.stats()
         if IS_EMPTY is None:
@@ -121,6 +154,26 @@ class x( base, unittest.TestCase):
             me.assertEqual( set( me.db.latest_submitted_tx()), set([ txid ]))
 
     def test_query_1_obj_whatever_it_is( me):
+        if V2:
+            q_flat_text = """
+            {:find [ id ]
+                :where [ ($ :atablename {:xt/id id } ) ]
+                :limit 1
+            }"""
+            q_builder = xtq().find( sym.id
+                ).where(    #FIXME only works as plain text inside
+                    #db2.List( [ edn_format.dumps( *predicate( sym('$'), kw.atablename, { me.db.id_kw : sym.id } )) ])
+                    db2.Match( kw.atablename, { me.db.id_kw : sym.id } )
+                ).limit( 1
+                )
+            print( q_builder)
+            r = me.db.query( q_builder)
+            me.assertTrue( isinstance( r, (dict, edn_format.ImmutableDict)), (r, type(r)))
+            me.assertTrue( 'id' in r, r)
+            q_builder2 = q_builder.copy( without=[kw.limit]).limit( 2)
+            r = me.db.query( q_builder2)    #fails, response not json but space-delimited text [..] [..]
+            return
+
         s = me.db.stats()
         IS_EMPTY = (s == {})
         assert not IS_EMPTY
@@ -132,7 +185,6 @@ class x( base, unittest.TestCase):
             }}"""
         rid1 = me.db.query( q_flat_text)
         id1 = rid1[0][0]
-        #print( id1)
 
         q_builder = xtq().find( sym.id
                 ).where( var_attr_value( sym.x, me.db.id_kw, sym.id )
@@ -140,6 +192,7 @@ class x( base, unittest.TestCase):
                 )
         me.assertEqual( _text2dumps1line( edn_dumps({ kw.query: q_builder })), _text2dumps1line( q_flat_text))
         me.assertEqual( me.db.query( q_builder), rid1 )
+
 
     def test_create( me, with_AID =True, two_subobjs =False):
         #me.db.debug=1
@@ -160,8 +213,9 @@ class x( base, unittest.TestCase):
             if two_subobjs:
                 obj.addresses[1][ with_AID ]= AID+1
         me.db.save( obj)
-        me.itest_stats( False)
-        me.db.sync()
+        if not V2:
+            me.itest_stats( False)
+            me.db.sync()
 
         me.assertEqual(
             me.db.query( xtq().find( pull( var.x, whole=True)
@@ -237,7 +291,7 @@ class x( base, unittest.TestCase):
             )
             #-> [obj, None]
 
-if 10:
+if 10 and not V2:
  class y( x):
     IS_EDN = not x.IS_EDN
     headers = {
@@ -294,7 +348,8 @@ class history( base, unittest.TestCase):
         ##print( me.db.latest_submitted_tx())   TODO
         ##print( me.db.latest_completed_tx())
         #me.db.await_tx_id( (as_of or tx)[ me.txid_key] )
-        me.db.sync()
+        if not V2:
+            me.db.sync()
         if as_of:
             qargs['tx_id'] = as_of[ me.txid_key]
         for k,v in results.items():

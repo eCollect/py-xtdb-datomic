@@ -44,7 +44,7 @@ class hacks:
         k_convert = keyword_into_str if maps_keys else lambda x:x
         v_convert = keyword_into_str if maps_values else lambda x:x
         def _init_( me, dct):
-            if isinstance( dct, dict): dct = dct.items()
+            if isinstance( dct, (dict,ImmutableDict)): dct = dct.items()
             me.dict = dict( (k_convert(k),v_convert(v)) for k,v in dct)
             me.hash = None
         ImmutableDict.__init__ = _init_
@@ -195,12 +195,13 @@ class BaseClient:
         if me.debug:
             purl = me._pretty_req( r)
             print( pformat( purl))
-            print( r, r.content)
+            print( r, r.headers, r.content)
         if r.ok: #status_code in (200, *extra_ok_statuses):
-            accept = r.request.headers[ 'accept']
-            if me._app_json in accept:
+            #accept = r.request.headers[ 'accept']
+            contentype = r.headers[ 'content-type']
+            if me._app_json in contentype:
                 return r.json()
-            if me._app_edn in accept:
+            if me._app_edn in contentype:
                 return edn_format.loads( r.content)
             return r.content
 

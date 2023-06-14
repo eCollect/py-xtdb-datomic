@@ -20,34 +20,6 @@ if RESULT_EDN:
 
 hacks.edn_accept_naive_datetimes()  #tx-as-json
 
-def transit_dumps( x):
-    #print( 333333, x)
-    import collections.abc
-    for c in 'MutableMapping Mapping Hashable'.split():
-        setattr( collections, c, getattr( collections.abc, c))
-    from transit.writer import Writer
-    from transit.write_handlers import KeywordHandler, SymbolHandler, MapHandler
-    from transit.transit_types import Keyword, Symbol
-    from io import StringIO
-    io = StringIO()
-    w = Writer( io, 'json' )
-    class KeywordHandler2( KeywordHandler):
-        @staticmethod
-        def rep(k): return k.name
-        string_rep = rep
-    class MapHandler2( MapHandler):
-        @staticmethod
-        def rep(m):
-            return dict( (Keyword( k) if not isinstance(k, edn_format.Keyword) else k,v)
-                    for k,v in m.items())
-
-    w.register( edn_format.Keyword, KeywordHandler2 ) #w.marshaler.handlers[
-    w.register( edn_format.Symbol,  SymbolHandler ) #w.marshaler.handlers[
-    w.register( dict,  MapHandler2 ) #w.marshaler.handlers[
-    w.write( x )
-    return io.getvalue()
-
-
 class xtdb_read( BaseClient):
     ''' bitemporal append-only-db-in-clojure, graph
     https://docs.xtdb.com/clients/http/
@@ -130,28 +102,15 @@ class xtdb_read( BaseClient):
         **BaseClient._headers_content_json,
         }
 
-    is_v2 = False
     def url( me, url ):
-        if me.is_v2:
-            return super().url( url )           #v2
         return super().url( '_xtdb', url )      #v1
 
-    def __init__( me, rooturl, *, v2 =False, **ka):
-        super().__init__( rooturl, **ka)
-        me.is_v2 = bool( v2)
-
     ##### rpc methods
-
+    #debug = 1
     def status( me): return me._get( 'status')
     def stats( me):  return me._get( 'attribute-stats')
-    def latest_completed_tx( me):
-        if me.is_v2:
-            return me.status()[ kw( 'latest-completed-tx' ) ]
-        return me._get( 'latest-completed-tx' )
-    def latest_submitted_tx( me):
-        if me.is_v2:
-            return me.status()[ kw( 'latest-submitted-tx' ) ]
-        return me._get( 'latest-submitted-tx' )
+    def latest_completed_tx( me): return me._get( 'latest-completed-tx' )
+    def latest_submitted_tx( me): return me._get( 'latest-submitted-tx' )
     def active_queries     ( me): return me._get( 'active-queries'      )
     def recent_queries     ( me): return me._get( 'recent-queries'      )
     def slowest_queries    ( me): return me._get( 'slowest-queries'     )
@@ -159,7 +118,7 @@ class xtdb_read( BaseClient):
 
     kw_query = edn_format.Keyword( 'query')
     kw_in_args = edn_format.Keyword( 'in-args')
-    def query_post( me, query, *in_args, post =True, keyword_keys =False, **ka):
+    def query_post( me, query, *in_args, keyword_keys =False, **ka):
         ''' POST /_xtdb/query
         https://docs.xtdb.com/clients/http/#post-query
         input data is edn-only; like { :query ... , :in-args ...values-optional }
@@ -187,16 +146,17 @@ class xtdb_read( BaseClient):
             data = edn_dumps( data, keyword_keys= keyword_keys)
         else:   #XXX must be complete, all-inside
             assert isinstance( query, str), query   #assume all is inside query-str
-            assert ':query' in query, query         #XXX with :query outmost-level
+            #assert ':query' in query, query         #XXX with :query outmost-level
             assert not in_args, f'cannot have text-query with separate {in_args=}'    #assume all is inside query-str
             assert not params_other, f'cannot have text-query with separate limit/offset/timeout {params_other}'    #assume all is inside query-str
             data = query
 
         assert isinstance( data, str), data
-        return me._post( 'query' if not me.is_v2 else 'datalog',
+        return me._post( 'query',
                 data= data,
                 **me._params( **params_vti),
-                headers= me._headers_content_edn )
+                headers= me.query_post_headers )
+    query_post_headers = BaseClient._headers_content_edn
     query = query_post
     if 0:
         def query_get( me, query, in_args ={}, **ka):
@@ -208,7 +168,6 @@ class xtdb_read( BaseClient):
 
     def sync( me, timeout_ms =None):
         'Wait until the Kafka consumer lag is back to 0 (i.e. when it no longer has pending transactions to write). Returns the transaction time of the most recent transaction.'
-        if me.is_v2: return
         return me._get( 'sync', **me._params(
                     **me._param_timeout_ms( timeout_ms)))
     def await_tx_id( me, tx_id, timeout_ms =None):
@@ -348,7 +307,6 @@ class xtdb( xtdb_read):
         for d in docs:
             assert isinstance( d, (dict,list,tuple)), d
 
-        if me.is_v2: as_json = False
         docs = [ me.make_tx_put( d, valid_time= valid_time, end_valid_time= end_valid_time, as_json= as_json)
                             if isinstance( d, dict) else list( d)
                     for d in docs ]
@@ -359,15 +317,7 @@ class xtdb( xtdb_read):
         #TODO edn_dumps+headers
         #XXX returns extra_ok_statuses= [202] processing-offline
 
-        if me.is_v2:    #tx-type tablename ..all-else..
-            docs = [ [ edn_format.Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
-            ops = {'tx-ops': docs }     #XXX assume auto key->keyword
-            #ops[ 'opts' ] = {}         #general for whole tx
-            data = transit_dumps( ops)
-            _headers_content_tjson = { 'content-type'  : me._app_json.replace( 'json', 'transit+json') }
-            kargs.update( headers= _headers_content_tjson)
-
-        elif as_json:
+        if as_json:
             ops = {'tx-ops': docs }
             if tx_time:
                 assert 0, 'this does not work via json' #TODO below edn_dumps.. then try again
@@ -386,7 +336,7 @@ class xtdb( xtdb_read):
             data = edn_dumps( ops)
             kargs.update( headers= me._headers_content_edn )
 
-        return me._post( 'submit-tx' if not me.is_v2 else 'tx',
+        return me._post( 'submit-tx',
                 data= data,
                 **kargs)
 
@@ -418,8 +368,7 @@ class xtdb( xtdb_read):
             assert doc.get( me.id_name), doc    #for json
         else:
             assert doc.get( me.id_kw), doc    #for edn
-        v2_table = [] if not me.is_v2 else [ 'atablename' ]
-        return [ 'put', *v2_table, dict(doc), *me._check_tx_end_valid_time( valid_time, end_valid_time)]
+        return [ 'put', dict(doc), *me._check_tx_end_valid_time( valid_time, end_valid_time)]
     @classmethod
     def make_tx_del( klas, eid, valid_time =None, end_valid_time =None):
         return [ 'delete', eid, *klas._check_tx_end_valid_time( valid_time, end_valid_time)]
@@ -435,7 +384,7 @@ class xtdb( xtdb_read):
         return [ 'evict', eid ]
 
     @staticmethod
-    def make_tx_db_func_decl( funcname, body):
+    def make_tx_func_decl( funcname, body):
         ''' https://docs.xtdb.com/language-reference/1.22.1/datalog-transactions/#_creating_updating
         https://docs.xtdb.com/language-reference/1.22.1/datalog-transactions/#transaction-functions
         produces document for inside tx ;

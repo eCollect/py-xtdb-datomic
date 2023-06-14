@@ -1,0 +1,27 @@
+target:
+
+["^ ", 
+"~:default-all-valid-time?", false, 
+"~:args", null, 
+"~:basis", ["^ ", 
+	"~:after-tx", null, 
+	"~:tx", null
+	], 
+"~:query", ["^ ", 
+	"~:find", [ "~$id"], 
+	"~:where", [[
+		"~#xtdb/list", "($ :atablename #:xt{:id id})"
+		]], 
+	"~:limit", 1
+	]
+]
+
+
+
+
+tj-dump:
+  in {Keyword(query): {Keyword(find): [Symbol(id)], Keyword(where): [['($ :atablename {:xt/id id})']], Keyword(limit): 1}}
+  out ["^ ","~:query",["^ ","~:find",["~$id"],"~:where",[["~#xtdb/list",["($ :atablename {:xt/id id})"]]],"~:limit",1]]
+  edn {:query {:find [id] :where [["($ :atablename {:xt/id id})"]] :limit 1}}
+
+

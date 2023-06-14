@@ -1,0 +1,1381 @@
+{
+   "info" : {
+      "title" : "XTDB API"
+   },
+   "paths" : {
+      "/_xtdb/active-queries" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get a list of currently running queries",
+            "parameters" : [],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "({:status :in-progress,\n  :query-id \"ae17c599-dcd2-47ee-bebd-47a3122f8d34\",\n  :query\n  {:find [e first-name],\n   :where [[e :first-name first-name] [e :last-name \"Tutorial\"]]},\n  :started-at #inst \"2020-10-16T15:48:52.656-00:00\",\n  :finished-at nil,\n  :error nil})\n",
+                     "application/json" : [
+                        {
+                           "error" : null,
+                           "finishedAt" : null,
+                           "query" : "{:find [e first-name], :where [[e :first-name first-name] [e :last-name \"Tutorial\"]]}",
+                           "queryId" : "ae17c599-dcd2-47ee-bebd-47a3122f8d34",
+                           "startedAt" : "2020-10-16T15:48:52Z",
+                           "status" : "in-progress"
+                        }
+                     ],
+                     "application/transit+json" : [
+                        "~#list",
+                        [
+                           [
+                              "^ ",
+                              "~:status",
+                              "~:in-progress",
+                              "~:query-id",
+                              "ae17c599-dcd2-47ee-bebd-47a3122f8d34",
+                              "~:query",
+                              [
+                                 "^ ",
+                                 "~:find",
+                                 [
+                                    "~$e",
+                                    "~$first-name"
+                                 ],
+                                 "~:where",
+                                 [
+                                    [
+                                       "~$e",
+                                       "~:first-name",
+                                       "^6"
+                                    ],
+                                    [
+                                       "~$e",
+                                       "~:last-name",
+                                       "Tutorial"
+                                    ]
+                                 ]
+                              ],
+                              "~:started-at",
+                              "~m1602863332656",
+                              "~:finished-at",
+                              null,
+                              "~:error",
+                              null
+                           ]
+                        ]
+                     ]
+                  }
+               }
+            },
+            "summary" : "Active Queries"
+         }
+      },
+      "/_xtdb/attribute-stats" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get frequencies of indexed attributes",
+            "parameters" : [],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "{:age 1,\n :firstName 1,\n :lastName 1,\n :xt/id 3,\n :first-name 2,\n :last-name 2}\n",
+                     "application/json" : {
+                        "age" : 1,
+                        "first-name" : 2,
+                        "firstName" : 1,
+                        "last-name" : 2,
+                        "lastName" : 1,
+                        "xt/id" : 3
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:age",
+                        1,
+                        "~:firstName",
+                        1,
+                        "~:lastName",
+                        1,
+                        "~:xt/id",
+                        3,
+                        "~:first-name",
+                        2,
+                        "~:last-name",
+                        2
+                     ]
+                  }
+               }
+            },
+            "summary" : "Attribute Stats"
+         }
+      },
+      "/_xtdb/await-tx" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Wait until the node has indexed a transaction at or past the supplied tx-id",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : true,
+                  "type" : "integer"
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "timeout",
+                  "required" : false,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:tx-id 5, :tx-time #inst \"2020-10-16T14:29:35.664-00:00\"}\n",
+                     "application/json" : {
+                        "txId" : 5,
+                        "txTime" : "2020-10-16T14:29:35Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/tx-id",
+                        5,
+                        "~:xtdb.api/tx-time",
+                        "~m1602858575664"
+                     ]
+                  }
+               }
+            },
+            "summary" : "Await Tx"
+         }
+      },
+      "/_xtdb/await-tx-time" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Wait until the node has indexed a transaction that is past the supplied tx-time",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : true,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "timeout",
+                  "required" : false,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:tx-time #inst \"2020-10-16T14:29:35.664-00:00\"}\n",
+                     "application/json" : {
+                        "txTime" : "2020-10-16T14:29:35Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/tx-time",
+                        "~m1602858575664"
+                     ]
+                  }
+               }
+            },
+            "summary" : "Await Tx Time"
+         }
+      },
+      "/_xtdb/db" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get the resolved db-basis for the given valid-time/transactoin",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/valid-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:valid-time #inst \"2020-11-05T17:19:39.218-00:00\",\n           :tx-time #inst \"2020-11-04T15:43:12.845-00:00\",\n           :tx-id 4}\n",
+                     "application/json" : {
+                        "txId" : 4,
+                        "txTime" : "2020-11-04T15:43:12Z",
+                        "validTime" : "2020-11-05T17:19:39Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/valid-time",
+                        "~m1604596779218",
+                        "~:xtdb.api/tx-time",
+                        "~m1604504592845",
+                        "~:xtdb.api/tx-id",
+                        4
+                     ]
+                  }
+               }
+            },
+            "summary" : "DB"
+         }
+      },
+      "/_xtdb/entity" : {
+         "get" : {
+            "consumes" : [],
+            "description" : "Get information about a particular entity",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "sort-order",
+                  "required" : false,
+                  "type" : "string"
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "start-tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/valid-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "end-tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "link-entities?",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "JSON formatted entity ID",
+                  "in" : "query",
+                  "name" : "eid-json",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/eid-json",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "with-corrections",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "start-tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.entity/start-tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "EDN formatted entity ID",
+                  "in" : "query",
+                  "name" : "eid-edn",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/eid-edn",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "start-valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.entity/start-valid-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "end-tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.entity/end-tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "with-docs",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "history",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "eid",
+                  "required" : false,
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "end-valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.entity/end-valid-time",
+                  "type" : null
+               }
+            ],
+            "produces" : [
+               "text/html",
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "{:xt/id :hello, :age 20}\n",
+                     "application/json" : {
+                        "age" : 20,
+                        "xt/id" : "hello"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xt/id",
+                        "~:hello",
+                        "~:age",
+                        20
+                     ]
+                  }
+               }
+            },
+            "summary" : "Entity"
+         }
+      },
+      "/_xtdb/entity-tx" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get transactional information an particular entity",
+            "parameters" : [
+               {
+                  "description" : "EDN formatted entity ID",
+                  "in" : "query",
+                  "name" : "eid-edn",
+                  "required" : true,
+                  "title" : "xtdb.http-server.util/eid-edn",
+                  "type" : null
+               },
+               {
+                  "description" : "JSON formatted entity ID",
+                  "in" : "query",
+                  "name" : "eid-json",
+                  "required" : true,
+                  "title" : "xtdb.http-server.util/eid-json",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "eid",
+                  "required" : true,
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/valid-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "{:xt/id #xtdb/id \"5aeebab117b892fa42002146e4c62be676bc4621\",\n :xtdb.api/content-hash\n #xtdb/id \"99747f80357c336ee5efd073c878313bf85b07f9\",\n :xtdb.api/valid-time #inst \"2020-10-16T14:29:35.664-00:00\",\n :xtdb.api/tx-time #inst \"2020-10-16T14:29:35.664-00:00\",\n :xtdb.api/tx-id 5}\n",
+                     "application/json" : {
+                        "contentHash" : "99747f80357c336ee5efd073c878313bf85b07f9",
+                        "id" : "5aeebab117b892fa42002146e4c62be676bc4621",
+                        "txId" : 5,
+                        "txTime" : "2020-10-16T14:29:35Z",
+                        "validTime" : "2020-10-16T14:29:35Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xt/id",
+                        [
+                           "~#xtdb/oid",
+                           "5aeebab117b892fa42002146e4c62be676bc4621"
+                        ],
+                        "~:xtdb.api/content-hash",
+                        [
+                           "^1",
+                           "99747f80357c336ee5efd073c878313bf85b07f9"
+                        ],
+                        "~:xtdb.api/valid-time",
+                        "~m1602858575664",
+                        "~:xtdb.api/tx-time",
+                        "~m1602858575664",
+                        "~:xtdb.api/tx-id",
+                        5
+                     ]
+                  }
+               }
+            },
+            "summary" : "Entity Tx"
+         }
+      },
+      "/_xtdb/latest-completed-tx" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get the latest transaction to have been indexed by this node",
+            "parameters" : [],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:tx-id 5, :tx-time #inst \"2020-10-16T14:29:35.664-00:00\"}\n",
+                     "application/json" : {
+                        "txId" : 5,
+                        "txTime" : "2020-10-16T14:29:35Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/tx-id",
+                        5,
+                        "~:xtdb.api/tx-time",
+                        "~m1602858575664"
+                     ]
+                  }
+               }
+            },
+            "summary" : "Latest Completed Tx"
+         }
+      },
+      "/_xtdb/latest-submitted-tx" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get the latest transaction to have been submitted to this cluster",
+            "parameters" : [],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:tx-id 5}\n",
+                     "application/json" : {
+                        "txId" : 5
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/tx-id",
+                        5
+                     ]
+                  }
+               }
+            },
+            "summary" : "Latest Submitted Tx"
+         }
+      },
+      "/_xtdb/query" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Perform a datalog query",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/valid-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "link-entities?",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "EDN formatted Datalog query",
+                  "example" : "{:find [e], :where [[e :xt/id _]], :limit 100}",
+                  "in" : "query",
+                  "name" : "query-edn",
+                  "required" : false,
+                  "title" : "xtdb.http-server.query/query-edn",
+                  "type" : null
+               },
+               {
+                  "description" : "EDN formatted :in binding arguments",
+                  "example" : "[\"foo\" 123]",
+                  "in" : "query",
+                  "items" : {},
+                  "name" : "in-args-edn",
+                  "required" : false,
+                  "title" : "xtdb.http-server.query/in-args-edn",
+                  "type" : "array"
+               },
+               {
+                  "description" : "JSON formatted :in binding arguments",
+                  "example" : "[\"foo\",123]",
+                  "in" : "query",
+                  "items" : {},
+                  "name" : "in-args-json",
+                  "required" : false,
+                  "title" : "xtdb.http-server.query/in-args-json",
+                  "type" : "array"
+               }
+            ],
+            "produces" : [
+               "text/html",
+               "application/json",
+               "application/transit+json",
+               "text/tsv",
+               "application/edn",
+               "text/csv"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "([:user-1 \"George\" \"Example\"]\n [:user-2 \"Sally\" \"Test\"]\n [:user-3 \"John\" \"Smith\"])\n",
+                     "application/json" : [
+                        [
+                           "user-1",
+                           "George",
+                           "Example"
+                        ],
+                        [
+                           "user-2",
+                           "Sally",
+                           "Test"
+                        ],
+                        [
+                           "user-3",
+                           "John",
+                           "Smith"
+                        ]
+                     ],
+                     "application/transit+json" : [
+                        "~#list",
+                        [
+                           [
+                              "~:user-1",
+                              "George",
+                              "Example"
+                           ],
+                           [
+                              "~:user-2",
+                              "Sally",
+                              "Test"
+                           ],
+                           [
+                              "~:user-3",
+                              "John",
+                              "Smith"
+                           ]
+                        ]
+                     ]
+                  }
+               }
+            },
+            "summary" : "Query"
+         },
+         "post" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Perform a datalog query",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "valid-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/valid-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               },
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "link-entities?",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "EDN formatted Datalog query",
+                  "example" : "{:find [e], :where [[e :xt/id _]], :limit 100}",
+                  "in" : "query",
+                  "name" : "query-edn",
+                  "required" : false,
+                  "title" : "xtdb.http-server.query/query-edn",
+                  "type" : null
+               },
+               {
+                  "description" : "EDN formatted :in binding arguments",
+                  "example" : "[\"foo\" 123]",
+                  "in" : "query",
+                  "items" : {},
+                  "name" : "in-args-edn",
+                  "required" : false,
+                  "title" : "xtdb.http-server.query/in-args-edn",
+                  "type" : "array"
+               },
+               {
+                  "description" : "JSON formatted :in binding arguments",
+                  "example" : "[\"foo\",123]",
+                  "in" : "query",
+                  "items" : {},
+                  "name" : "in-args-json",
+                  "required" : false,
+                  "title" : "xtdb.http-server.query/in-args-json",
+                  "type" : "array"
+               },
+               {
+                  "description" : "",
+                  "in" : "body",
+                  "name" : "xtdb.http-server.query/body-params",
+                  "required" : true,
+                  "schema" : {
+                     "properties" : {
+                        "in-args" : {
+                           "description" : ":in binding arguments",
+                           "example" : [
+                              "foo",
+                              123
+                           ],
+                           "items" : {},
+                           "title" : "xtdb.http-server.query/in-args",
+                           "type" : "array"
+                        },
+                        "query" : {
+                           "description" : "Datalog query",
+                           "example" : {
+                              "find" : [
+                                 "e"
+                              ],
+                              "limit" : 100,
+                              "where" : [
+                                 [
+                                    "e",
+                                    "xt/id",
+                                    "_"
+                                 ]
+                              ]
+                           },
+                           "title" : "xtdb.http-server.query/query"
+                        }
+                     },
+                     "required" : [
+                        "query"
+                     ],
+                     "title" : "xtdb.http-server.query/body-params",
+                     "type" : "object"
+                  }
+               }
+            ],
+            "produces" : [
+               "text/html",
+               "application/json",
+               "application/transit+json",
+               "text/tsv",
+               "application/edn",
+               "text/csv"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "([:user-1 \"George\" \"Example\"]\n [:user-2 \"Sally\" \"Test\"]\n [:user-3 \"John\" \"Smith\"])\n",
+                     "application/json" : [
+                        [
+                           "user-1",
+                           "George",
+                           "Example"
+                        ],
+                        [
+                           "user-2",
+                           "Sally",
+                           "Test"
+                        ],
+                        [
+                           "user-3",
+                           "John",
+                           "Smith"
+                        ]
+                     ],
+                     "application/transit+json" : [
+                        "~#list",
+                        [
+                           [
+                              "~:user-1",
+                              "George",
+                              "Example"
+                           ],
+                           [
+                              "~:user-2",
+                              "Sally",
+                              "Test"
+                           ],
+                           [
+                              "~:user-3",
+                              "John",
+                              "Smith"
+                           ]
+                        ]
+                     ]
+                  }
+               }
+            },
+            "summary" : "Query"
+         }
+      },
+      "/_xtdb/recent-queries" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get a list of recently completed/failed queries",
+            "parameters" : [],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "({:status :completed,\n  :query-id \"ae17c599-dcd2-47ee-bebd-47a3122f8d34\",\n  :query\n  {:find [e first-name],\n   :where [[e :first-name first-name] [e :last-name \"Tutorial\"]]},\n  :started-at #inst \"2020-10-16T15:48:52.656-00:00\",\n  :finished-at #inst \"2020-10-16T15:48:52.835-00:00\",\n  :error nil})\n",
+                     "application/json" : [
+                        {
+                           "error" : null,
+                           "finishedAt" : "2020-10-16T15:48:52Z",
+                           "query" : "{:find [e first-name], :where [[e :first-name first-name] [e :last-name \"Tutorial\"]]}",
+                           "queryId" : "ae17c599-dcd2-47ee-bebd-47a3122f8d34",
+                           "startedAt" : "2020-10-16T15:48:52Z",
+                           "status" : "completed"
+                        }
+                     ],
+                     "application/transit+json" : [
+                        "~#list",
+                        [
+                           [
+                              "^ ",
+                              "~:status",
+                              "~:completed",
+                              "~:query-id",
+                              "ae17c599-dcd2-47ee-bebd-47a3122f8d34",
+                              "~:query",
+                              [
+                                 "^ ",
+                                 "~:find",
+                                 [
+                                    "~$e",
+                                    "~$first-name"
+                                 ],
+                                 "~:where",
+                                 [
+                                    [
+                                       "~$e",
+                                       "~:first-name",
+                                       "^6"
+                                    ],
+                                    [
+                                       "~$e",
+                                       "~:last-name",
+                                       "Tutorial"
+                                    ]
+                                 ]
+                              ],
+                              "~:started-at",
+                              "~m1602863332656",
+                              "~:finished-at",
+                              "~m1602863332835",
+                              "~:error",
+                              null
+                           ]
+                        ]
+                     ]
+                  }
+               }
+            },
+            "summary" : "Recent Queries"
+         }
+      },
+      "/_xtdb/slowest-queries" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get a list of slowest completed/failed queries ran on the node",
+            "parameters" : [],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "({:status :completed,\n  :query-id \"ae17c599-dcd2-47ee-bebd-47a3122f8d34\",\n  :query\n  {:find [e first-name],\n   :where [[e :first-name first-name] [e :last-name \"Tutorial\"]]},\n  :started-at #inst \"2020-10-16T15:48:52.656-00:00\",\n  :finished-at #inst \"2020-10-16T15:48:52.835-00:00\",\n  :error nil})\n",
+                     "application/json" : [
+                        {
+                           "error" : null,
+                           "finishedAt" : "2020-10-16T15:48:52Z",
+                           "query" : "{:find [e first-name], :where [[e :first-name first-name] [e :last-name \"Tutorial\"]]}",
+                           "queryId" : "ae17c599-dcd2-47ee-bebd-47a3122f8d34",
+                           "startedAt" : "2020-10-16T15:48:52Z",
+                           "status" : "completed"
+                        }
+                     ],
+                     "application/transit+json" : [
+                        "~#list",
+                        [
+                           [
+                              "^ ",
+                              "~:status",
+                              "~:completed",
+                              "~:query-id",
+                              "ae17c599-dcd2-47ee-bebd-47a3122f8d34",
+                              "~:query",
+                              [
+                                 "^ ",
+                                 "~:find",
+                                 [
+                                    "~$e",
+                                    "~$first-name"
+                                 ],
+                                 "~:where",
+                                 [
+                                    [
+                                       "~$e",
+                                       "~:first-name",
+                                       "^6"
+                                    ],
+                                    [
+                                       "~$e",
+                                       "~:last-name",
+                                       "Tutorial"
+                                    ]
+                                 ]
+                              ],
+                              "~:started-at",
+                              "~m1602863332656",
+                              "~:finished-at",
+                              "~m1602863332835",
+                              "~:error",
+                              null
+                           ]
+                        ]
+                     ]
+                  }
+               }
+            },
+            "summary" : "Slowest Queries"
+         }
+      },
+      "/_xtdb/status" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get status information from the node",
+            "parameters" : [],
+            "produces" : [
+               "text/html",
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "{:xtdb.version/version \"1.23.2\",\n :xtdb.version/revision nil,\n :xtdb.index/index-version 13,\n :xtdb.tx-log/consumer-state nil,\n :xtdb.kv/kv-store \"xtdb.rocksdb.RocksKv\",\n :xtdb.kv/estimate-num-keys 3,\n :xtdb.kv/size 132665}\n",
+                     "application/json" : {
+                        "consumerState" : null,
+                        "estimateNumKeys" : 3,
+                        "indexVersion" : 13,
+                        "kvStore" : "xtdb.rocksdb.RocksKv",
+                        "revision" : null,
+                        "size" : 132665,
+                        "version" : "1.23.2"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.version/version",
+                        "1.23.2",
+                        "~:xtdb.version/revision",
+                        null,
+                        "~:xtdb.index/index-version",
+                        13,
+                        "~:xtdb.tx-log/consumer-state",
+                        null,
+                        "~:xtdb.kv/kv-store",
+                        "xtdb.rocksdb.RocksKv",
+                        "~:xtdb.kv/estimate-num-keys",
+                        3,
+                        "~:xtdb.kv/size",
+                        132665
+                     ]
+                  }
+               }
+            },
+            "summary" : "Status"
+         }
+      },
+      "/_xtdb/submit-tx" : {
+         "post" : {
+            "consumes" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Takes a vector of transactions - Writes to the node",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "body",
+                  "name" : "xtdb.http-server/submit-tx-spec",
+                  "required" : true,
+                  "schema" : {
+                     "properties" : {
+                        "tx-ops" : {
+                           "type" : "array"
+                        },
+                        "xtdb.api/submit-tx-opts" : {
+                           "properties" : {
+                              "xtdb.api/tx-time" : {}
+                           },
+                           "title" : "xtdb.api/submit-tx-opts",
+                           "type" : "object"
+                        }
+                     },
+                     "required" : [
+                        "tx-ops"
+                     ],
+                     "title" : "xtdb.http-server/submit-tx-spec",
+                     "type" : "object"
+                  }
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:tx-id 6, :tx-time #inst \"2020-10-19T09:21:29.000-00:00\"}\n",
+                     "application/json" : {
+                        "txId" : 6,
+                        "txTime" : "2020-10-19T09:21:29Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/tx-id",
+                        6,
+                        "~:xtdb.api/tx-time",
+                        "~m1603099289000"
+                     ]
+                  }
+               }
+            },
+            "summary" : "Submit Tx"
+         }
+      },
+      "/_xtdb/sync" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Wait until the Kafka consumer’s lag is back to 0",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "tx-time",
+                  "required" : false,
+                  "title" : "xtdb.http-server.util/tx-time",
+                  "type" : null
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "timeout",
+                  "required" : false,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "#:xtdb.api{:tx-time #inst \"2020-10-16T14:29:35.664-00:00\"}\n",
+                     "application/json" : {
+                        "txTime" : "2020-10-16T14:29:35Z"
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:xtdb.api/tx-time",
+                        "~m1602858575664"
+                     ]
+                  }
+               }
+            },
+            "summary" : "Sync"
+         }
+      },
+      "/_xtdb/tx-committed" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Checks if a submitted tx was successfully committed",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "tx-id",
+                  "required" : true,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "{:tx-committed? true}\n",
+                     "application/json" : {
+                        "txCommitted?" : true
+                     },
+                     "application/transit+json" : [
+                        "^ ",
+                        "~:tx-committed?",
+                        true
+                     ]
+                  }
+               }
+            },
+            "summary" : "Tx Committed"
+         }
+      },
+      "/_xtdb/tx-log" : {
+         "get" : {
+            "consumes" : [
+               "application/transit+json",
+               "application/edn"
+            ],
+            "description" : "Get a list of all transactions",
+            "parameters" : [
+               {
+                  "description" : "",
+                  "in" : "query",
+                  "name" : "with-ops?",
+                  "required" : false,
+                  "type" : "boolean"
+               },
+               {
+                  "description" : "",
+                  "format" : "int64",
+                  "in" : "query",
+                  "name" : "after-tx-id",
+                  "required" : false,
+                  "type" : "integer"
+               }
+            ],
+            "produces" : [
+               "application/json",
+               "application/transit+json",
+               "application/edn"
+            ],
+            "responses" : {
+               "200" : {
+                  "description" : "",
+                  "examples" : {
+                     "application/edn" : "(#:xtdb.api{:tx-id 0,\n            :tx-time #inst \"2020-10-16T09:02:43.429-00:00\",\n            :tx-events\n            [[:xtdb.api/put\n              #xtdb/id \"83bed47ace572cb94c2f137f58bce73b9b7d0039\"\n              #xtdb/id \"f441402b3c5d37365203947aabe85cf471498bf0\"\n              #inst \"2020-06-20T20:05:50.000-00:00\"]]}\n #:xtdb.api{:tx-id 1,\n            :tx-time #inst \"2020-10-16T09:28:27.785-00:00\",\n            :tx-events\n            [[:xtdb.api/put\n              #xtdb/id \"83bed47ace572cb94c2f137f58bce73b9b7d0039\"\n              #xtdb/id \"f441402b3c5d37365203947aabe85cf471498bf0\"\n              #inst \"2020-06-20T20:05:50.000-00:00\"]]})\n",
+                     "application/json" : [
+                        {
+                           "txEvents" : [
+                              [
+                                 "put",
+                                 "83bed47ace572cb94c2f137f58bce73b9b7d0039",
+                                 "f441402b3c5d37365203947aabe85cf471498bf0",
+                                 "2020-06-20T20:05:50Z"
+                              ]
+                           ],
+                           "txId" : 0,
+                           "txTime" : "2020-10-16T09:02:43Z"
+                        },
+                        {
+                           "txEvents" : [
+                              [
+                                 "put",
+                                 "83bed47ace572cb94c2f137f58bce73b9b7d0039",
+                                 "f441402b3c5d37365203947aabe85cf471498bf0",
+                                 "2020-06-20T20:05:50Z"
+                              ]
+                           ],
+                           "txId" : 1,
+                           "txTime" : "2020-10-16T09:28:27Z"
+                        }
+                     ],
+                     "application/transit+json" : [
+                        "~#list",
+                        [
+                           [
+                              "^ ",
+                              "~:xtdb.api/tx-id",
+                              0,
+                              "~:xtdb.api/tx-time",
+                              "~m1602838963429",
+                              "~:xtdb.api/tx-events",
+                              [
+                                 [
+                                    "~:xtdb.api/put",
+                                    [
+                                       "~#xtdb/oid",
+                                       "83bed47ace572cb94c2f137f58bce73b9b7d0039"
+                                    ],
+                                    [
+                                       "^5",
+                                       "f441402b3c5d37365203947aabe85cf471498bf0"
+                                    ],
+                                    "~m1592683550000"
+                                 ]
+                              ]
+                           ],
+                           [
+                              "^ ",
+                              "^1",
+                              1,
+                              "^2",
+                              "~m1602840507785",
+                              "^3",
+                              [
+                                 [
+                                    "^4",
+                                    [
+                                       "^5",
+                                       "83bed47ace572cb94c2f137f58bce73b9b7d0039"
+                                    ],
+                                    [
+                                       "^5",
+                                       "f441402b3c5d37365203947aabe85cf471498bf0"
+                                    ],
+                                    "~m1592683550000"
+                                 ]
+                              ]
+                           ]
+                        ]
+                     ]
+                  }
+               }
+            },
+            "summary" : "Tx Log"
+         }
+      }
+   },
+   "swagger" : "2.0",
+   "x-id" : [
+      "juxt.clojars-mirrors.reitit-swagger.v0v5v15.reitit.swagger/default"
+   ]
+}
