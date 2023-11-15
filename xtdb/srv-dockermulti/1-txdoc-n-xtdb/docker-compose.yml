@@ -12,7 +12,7 @@ services:
     #environment:
       #- BITNAMI_DEBUG=yes
 
-  pg:   #https://hub.docker.com/_/postgres     ..how about locales??
+  pg:
     extends:
         service: postgresql
         file: ./dc_lib.yaml

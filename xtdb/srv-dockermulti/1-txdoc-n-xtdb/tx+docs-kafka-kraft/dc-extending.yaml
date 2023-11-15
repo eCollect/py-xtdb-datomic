@@ -3,7 +3,7 @@ name: ok #tx+docs-kafka-kraft/
 #for linux: on the host, chmod a+rwx -R ./data  XXX as nothing else works
 services:
 
-  kafka: # https://hub.docker.com/r/bitnami/kafka
+  kafka:
     extends:
         service: kafka_kraft
         file: ./dc_lib.yaml
@@ -15,10 +15,7 @@ services:
   chkpt:
     extends:
         service: chkpt
-        file: ./checkpointkeeper.yml
-    volumes:
-        - $PWD/data/chkpt/index:/cp_index
-        - $PWD/data/chkpt/lucene:/cp_lucene
+        file: ./dc_lib.yaml
 
   xtdb-1: &xtdbcfg
     extends:

@@ -10,11 +10,14 @@ XK= $(NAME)-kafka-1
 XC= $(NAME)-chkpt-1
 XP= $(NAME)-pg-1
 Xk=$(XK)
+Xkafka=$(XK)
 Xc=$(XC)
+Xchkpt=$(XC)
 Xp=$(XP)
+Xpg=$(XP)
 
 now:
-	@echo "1 2 3 k c -.- l/log stop run bash; du"
+	@echo "targets: {who}.{what} ; du ; ls ;;; who: 1 2 3 k/kafka c/chkpt p/pg ; what: l/log stop run bash ; e.g. k.run"
 
 %.log %.l log.% l.%:
 	docker logs $(X$*) $(TAIL)
@@ -39,7 +42,7 @@ lall logall alll alllog:
 du:
 	du -msc data/[kp]*/  data/xtdb*/*/  data/chkpt*/*/*/
 
-drls:
+drls ls:
 	docker container ls -a
 	docker image ls -a
 	docker volume ls

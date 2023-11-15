@@ -1,9 +1,9 @@
-name: ok
+name: ok #tx+docs-pg/
 
 #for linux: on the host, chmod a+rwx -R ./data  XXX as nothing else works
 services:
 
-  pg:   #https://hub.docker.com/_/postgres
+  pg:
     extends:
         service: postgresql
         file: ./dc_lib.yaml
@@ -16,10 +16,7 @@ services:
   chkpt:
     extends:
         service: chkpt
-        file: ./checkpointkeeper.yml
-    volumes:
-        - $PWD/data/chkpt/index:/cp_index
-        - $PWD/data/chkpt/lucene:/cp_lucene
+        file: ./dc_lib.yaml
 
   xtdb-1: &xtdbcfg
     extends:

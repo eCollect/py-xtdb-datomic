@@ -3,7 +3,7 @@ name: ok #tx-kafka-kraft+docs-pg
 #for linux: on the host, chmod a+rwx -R ./data  XXX as nothing else works
 services:
 
-  kafka: # https://hub.docker.com/r/bitnami/kafka
+  kafka:
     extends:
         service: kafka_kraft
         file: ./dc_lib.yaml
@@ -12,7 +12,7 @@ services:
     #environment:
       #- BITNAMI_DEBUG=yes
 
-  pg:   #https://hub.docker.com/_/postgres
+  pg:
     extends:
         service: postgresql
         file: ./dc_lib.yaml
@@ -25,10 +25,7 @@ services:
   chkpt:
     extends:
         service: chkpt
-        file: ./checkpointkeeper/docker-compose.yml
-    volumes:
-        - $PWD/data/chkpt/index:/cp_index
-        - $PWD/data/chkpt/lucene:/cp_lucene
+        file: ./dc_lib.yaml
 
   xtdb-1: &xtdbcfg
     extends:
