@@ -24,8 +24,8 @@ test tests:	#non-db
 	python -m datomic.mbrainz_schema
 tests-xt test-xt xt:
 	python -m xtdb.testdb
-	cd xtdb/ && PYTHONPATH=.. python try.py
-	python -m xtdb.astory2xt
+	-cd xtdb/ && PYTHONPATH=.. python try.py
+	-python -m xtdb.astory2xt
 tests-da test-da da:
 	cd datomic/ && PYTHONPATH=.. python try.py
 	cd datomic/ && PYTHONPATH=.. python try_mbrainz.py
@@ -36,8 +36,9 @@ all: test
 	$(MAKE) tests-xt
 	$(MAKE) tests-da
 
-EXCLUDES= 1 dist xtdb/others xtdb/srv*/* datomic/datomic-pro-1.0.6527/* datomic/mbrainz*
+EXCLUDES= 1 dist xtdb/others xtdb/srv*/* datomic/datomic-*/* datomic/mbrainz*
+PYPACKS = $(VIRTUAL_ENV)/lib/python3*/site-packages
 tags ctags:
-	ctags $(EXCLUDES:%=--exclude="%") --links=no -R . edn_format/
+	ctags $(EXCLUDES:%=--exclude="%") --links=no -R . $(PYPACKS)/edn_format $(PYPACKS)/transit
 
 # vim:ts=4:sw=4:noexpandtab

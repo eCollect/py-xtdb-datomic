@@ -1,6 +1,10 @@
 PORT=3001
+REMOVE_AT_EXIT=--rm
+#ARGS=--entrypoint bash		#just walk inside
+#V2TAG=xtdb-ea
+V2TAG=xtdb-standalone-ea
 run:
-	docker run -ti --rm -p 5432:5432 -p 9832:9832 -p $(PORT):3000 ghcr.io/xtdb/xtdb-ea
+	docker run -ti $(REMOVE_AT_EXIT) $(ARGS) -p 5432:5432 -p 9832:9832 -p $(PORT):3000 ghcr.io/xtdb/$(V2TAG) $(CMD)
 dload:
 	docker pull ghcr.io/xtdb/xtdb-ea
 

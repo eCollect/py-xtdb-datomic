@@ -1,11 +1,13 @@
 from . import dbclient as db1
 import edn_format
+Keyword = edn_format.Keyword
+Symbol  = edn_format.Symbol
 
 class List( tuple):
     'for the query operators like match, subquery.. - ($ (q (left-join etc' # FIXME
     def __new__( me, *a):
         return super().__new__( me, a)
-op_match = edn_format.Symbol( '$')
+op_match = Symbol( '$')
 class Match( List):
     def __new__( me, *a):
         return super().__new__( me, op_match, *a)
@@ -18,7 +20,7 @@ def transit_dumps( x):
             setattr( collections, c, getattr( collections.abc, c))
     from transit.writer import Writer
     from transit.write_handlers import KeywordHandler, SymbolHandler, MapHandler, SetHandler, TaggedMap
-    from transit.transit_types import Keyword, Symbol
+    from transit.transit_types import Keyword as tj_Keyword
     from io import StringIO
     buf = StringIO()
     w = Writer( buf, 'json' )
@@ -29,10 +31,10 @@ def transit_dumps( x):
     class MapHandler2( MapHandler):
         @staticmethod
         def rep(m):
-            return dict( (Keyword( k) if not isinstance(k, edn_format.Keyword) else k,v)
+            return dict( (tj_Keyword( k) if not isinstance(k, Keyword) else k,v)
                     for k,v in m.items())
-    w.register( edn_format.Keyword, KeywordHandler2 ) #w.marshaler.handlers[
-    w.register( edn_format.Symbol,  SymbolHandler ) #w.marshaler.handlers[
+    w.register( Keyword, KeywordHandler2 ) #w.marshaler.handlers[
+    w.register( Symbol,  SymbolHandler ) #w.marshaler.handlers[
     w.register( dict,  MapHandler2 ) #w.marshaler.handlers[
 
     class ListHandler( SetHandler):
@@ -54,13 +56,13 @@ def transit_loads( x):
     #from transit.reader import JsonUnmarshaler
     #r = JsonUnmarshaler().load( buf)
     r = Reader( protocol= 'json')
-    from transit.transit_types import Keyword, Symbol
+    #from transit.transit_types import Keyword as tj_Keyword
     from transit import transit_types
     from transit.read_handlers import KeywordHandler, SymbolHandler, CmapHandler, pairs, DateHandler
     if not getattr( KeywordHandler, '_dbclixed', 0):
         KeywordHandler._dbclixed = 1
-        KeywordHandler.from_rep = edn_format.Keyword    #staticmethod
-        #SymbolHandler.from_rep = staticmethod( edn_format.Symbol )
+        KeywordHandler.from_rep = Keyword    #staticmethod
+        #SymbolHandler.from_rep = staticmethod( Symbol )
         #CmapHandler.from_rep = staticmethod( lambda cmap: dict( pairs( cmap))) not needed if below frozendict
         transit_types.frozendict = edn_format.ImmutableDict #dict   auto keyword2str, kebab2camel, etc
         r.register( 'time/instant', DateHandler)
@@ -116,9 +118,8 @@ class xtdb2_read( db1.BaseClient):
     _params_valid_time_tx_id = db1.xtdb._params_valid_time_tx_id
     id_name = db1.xtdb.id_name
     id_kw   = db1.xtdb.id_kw
-    kw_query = edn_format.Keyword( 'query')
-    kw_in_args = edn_format.Keyword( 'args')
-
+    kw_query = Keyword( 'query')
+    kw_in_args = Keyword( 'args')
 
     ##### rpc methods
     debug = 1
@@ -162,7 +163,7 @@ class xtdb2( xtdb2_read):
 
         kargs = {}
         #tx-type tablename ..all-else..
-        docs = [ [ edn_format.Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
+        docs = [ [ Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
         ops = {'tx-ops': docs }     #XXX assume auto key->keyword
         #ops[ 'opts' ] = {}         #general for whole tx
         data = transit_dumps( ops)
@@ -178,7 +179,7 @@ class xtdb2( xtdb2_read):
     _transaction_types = 'put delete erase call put-fn'.split()    #call = v1.fn ; erase = v1.evict
     _check_tx_end_valid_time = db1.xtdb._check_tx_end_valid_time
     def make_tx_put( me, doc, valid_time =None, end_valid_time =None, table ='atablename'):
-        r = db1.xtdb.make_tx_put( me, doc, valid_time, end_valid_time, as_json= False)
+        r = db1.xtdb.make_tx_put( me, doc, valid_time, end_valid_time)#, as_json= False)
         return [ 'put', table, *r[1:]]
     @classmethod
     def make_tx_del( me, eid, valid_time =None, end_valid_time =None, table ='atablename'):

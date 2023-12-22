@@ -168,7 +168,8 @@ if 1:
     e1.account = ac1._id
     pprint( e1)
     #/0
-    db.save( e1, as_json= AS_JSON)
+    log( db.save, e1, as_json= AS_JSON)
+    log( db.sync)   #without this, below query may miss it
 
     r = run( qent1, 'uuid123' )
     entid = r[0][0][ str( db.id_name) ]

@@ -7,7 +7,6 @@ from pprint import pprint
 import os
 PORT= os.getenv( 'PORT') or '3001'
 URL = os.getenv( 'XTDB') or f'http://localhost:{PORT}'
-N = os.getenv( 'N ')
 db = xtdb( URL)
 
 if 10:
@@ -62,8 +61,8 @@ if 10:
         last_tx_time = last_tx['txTime']
 
         for time in [
-            #datetime.datetime.utcnow() - datetime.timedelta( seconds=5),
-            #datetime.datetime.now( datetime.timezone.utc) - datetime.timedelta( seconds=25),
+            #datetime.datetime.utcnow() - datetime.timedelta( seconds=5),   #XXX naive
+            #datetime.datetime.now( datetime.timezone.utc) - datetime.timedelta( seconds=25),   #XXX aware
             last_tx_time + datetime.timedelta( seconds=3),
             None
             ]:

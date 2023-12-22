@@ -2,7 +2,7 @@
 from base.utils import dictAttr
 from base.schema import AttrType, types, EnumType
 from base.qsyntax import kw2
-import edn_format
+from base.qsyntax import Keyword
 
 def normalize( struct_decl):
     'overwrite in place: materialize functors, initial checks, recursively'
@@ -46,6 +46,7 @@ class objmap:
     _db_id = ('xt','id')
     _db_id_required = True
     _db_id_allowed_types = ( str, int, types.uuid.type, )
+    _db_id_generator = None     #functor() ; having this disallows manual id-assignment
     #_components_embedding_allowed = True    #XXX TODO disallow? separating?
     @classmethod
     def get_db_id( me, obj, _keyer =kw2):
@@ -67,6 +68,9 @@ class objmap:
         #dbid
         dbid = attrs.pop( '_id', None)
         if _me._db_id_required:
+            if _me._db_id_generator:
+                assert not dbid, f'do not override auto _id in: {_oname}'
+                dbid = _me._db_id_generator()
             assert dbid, f'required _id in: {_oname}'
         if dbid:
             me.check_db_id( dbid)
@@ -100,7 +104,7 @@ class objmap:
 
         assert not attrs, f'unknown in: {_oname}: {attrs}'
 
-        r = obj( r, typename= _oname, _db_id= _me._db_id, keyer= _keyer)
+        r = objbase( r, typename= _oname, _db_id= _me._db_id, keyer= _keyer)
         return r
 
 
@@ -119,22 +123,22 @@ class objmap:
             return v
 
         if decl.typename == 'link':     #deref
-            if isinstance( v, obj):
-                print( 'warn: linked obj is not autosaved', k)
+            if isinstance( v, objbase):
+                print( 'warn: linked obj is not autosaved:', k)
                 return v._id
             if isinstance( v, dict):
-                print( 'warn: linked obj is not autosaved', k)
+                print( 'warn: linked obj is not autosaved:', k)
                 return me.get_db_id( v, _keyer=_keyer)
             me.check_db_id( v, (k,v,decl))
 
         elif decl.typename == 'component':     #deref.. all same as link ; flatten will not come here
             assert not decl.flatten, (k,decl)
             if not decl.embed:
-                if isinstance( v, obj):
-                    print( 'warn: linked obj-comp is not autosaved', k)
+                if isinstance( v, objbase):
+                    print( 'warn: linked obj-comp is not autosaved:', k)
                     return v._id
                 if isinstance( v, dict):
-                    print( 'warn: linked obj-comp is not autosaved', k)
+                    print( 'warn: linked obj-comp is not autosaved:', k)
                     return me.get_db_id( v, _keyer=_keyer)
                 me.check_db_id( v, (k,v,decl))
             #else embed: no checks/converts whatsoever
@@ -143,7 +147,7 @@ class objmap:
             if 0 and me._enums:     #abandon checks
                 enumtype = me._enums.get( decl.typeorname )
                 assert enumtype, (k, decl)
-                if isinstance( v, edn_format.Keyword):
+                if isinstance( v, Keyword):
                     namespace,name = v.name.split('/')
                     assert namespace == enumtype.__name__, (k,v,decl)
                     assert name in enumtype.__members__, (k,v,decl)
@@ -158,9 +162,9 @@ class objmap:
             if isinstance( v, EnumType):
                 return me.enum2enum( v)
             if me.ENUM_AS_KEYWORD:
-                assert isinstance( v, edn_format.Keyword), (k,v,decl)
+                assert isinstance( v, Keyword), (k,v,decl)
             else: #'enum is str=namespace/name'
-                if isinstance( v, edn_format.Keyword):
+                if isinstance( v, Keyword):
                     return v.name
                 assert isinstance( v, str), (k,v,decl)
 
@@ -175,9 +179,9 @@ class objmap:
             return kw2( v.__class__.__name__, v.name)
         return v.__class__.__name__ + '/'+ v.name
 
-class obj( dict):
+class objbase( dict):
     '''very primitive..
-    >>> o = obj( dict( a=2, b=3, _id=4), typename='ko')
+    >>> o = objbase( dict( a=2, b=3, _id=4), typename='ko')
     >>> o
     {Keyword(ko/a): 2, Keyword(ko/b): 3, Keyword(xt/id): 4}
     >>> isinstance( o, dict)

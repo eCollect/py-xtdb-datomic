@@ -1,7 +1,7 @@
+from base.qsyntax import Keyword, Symbol
 from base.qsyntax import sym, sym2, kw, kw2, check_sym_name_level, is_literal, is_symbol, is_keyword, is_clause, is_variable_or_clause, edn_factory2, QSError, edn_dumps
 from base import qsyntax as qs
 from base.test_qs import Base
-import edn_format
 import unittest, datetime
 
 # https://github.com/edn-format/edn
@@ -15,10 +15,10 @@ name_errors = [ e_empty, e_start, e_afterstart, e_allowed, e_1_slash ]
 
 class kw_levels( Base, unittest.TestCase):
     def test_L1_ok_1_level(self):
-        ka = edn_format.Keyword( 'a')
+        ka = Keyword( 'a')
         kw1tests = [ kw.a , kw('a') ]
         for i in kw1tests:
-            self.assertIsInstance( i, edn_format.Keyword)
+            self.assertIsInstance( i, Keyword)
             self.assertEqual( i, ka)
             self.assertEqual( str(i), ':a')
         self.assertEqual( len( set( [ka] + kw1tests)), 1)
@@ -26,22 +26,22 @@ class kw_levels( Base, unittest.TestCase):
     def test_L2_ok_1_level(self):
         level1 = kw2.a
         self.assertIsInstance( level1, edn_factory2._edn2_half)
-        self.assertNotIsInstance( level1, edn_format.Keyword)
+        self.assertNotIsInstance( level1, Keyword)
         self.assertNotEqual( level1, kw.a)
         self.assertIn( 'edn_factory2._edn2_half', str(level1))
-        kax = edn_format.Keyword( 'a/x')
+        kax = Keyword( 'a/x')
         l1tests = [ level1.x , level1('x') ]
         for i in l1tests:
-            self.assertIsInstance( i, edn_format.Keyword)
+            self.assertIsInstance( i, Keyword)
             self.assertEqual( i, kax)
             self.assertEqual( str(i), ':a/x')
         self.assertEqual( len( set( [kax] + l1tests)), 1)
 
     def test_L2_ok_2_levels(self):
         kw2tests = [ kw2.a.b , kw2('a', 'b') , kw2.a('b') , kw2('a').b , kw2('a')('b') ]
-        kab = edn_format.Keyword( 'a/b')
+        kab = Keyword( 'a/b')
         for i in kw2tests:
-            self.assertIsInstance( i, edn_format.Keyword)
+            self.assertIsInstance( i, Keyword)
             self.assertEqual( i, kab)
             self.assertEqual( str(i), ':a/b')
         self.assertEqual( len( set( [kab] + kw2tests)), 1)
@@ -301,13 +301,13 @@ class symbols_keywords( Base, unittest.TestCase):
             self.assertFalse( is_literal( err), repr(err) )
 
     def test_is_symbol(self):
-        for ok in [ sym.x, sym2.x.y, sym('a'), sym('a/b'), edn_format.Symbol('x') ]:
+        for ok in [ sym.x, sym2.x.y, sym('a'), sym('a/b'), Symbol('x') ]:
             self.assertTrue( is_symbol( ok), repr(ok))
         for err in [ kw.x, 'sym.x', sym2.x, kw2.x, 3, 'x', ':x', [], (sym.x,), [sym.x], None ]:
             self.assertFalse( is_symbol( err), repr(err))
 
     def test_is_keyword(self):
-        for ok in [ kw.x, kw2.x.y, kw('a'), kw('a/b'), edn_format.Keyword('x') ]:
+        for ok in [ kw.x, kw2.x.y, kw('a'), kw('a/b'), Keyword('x') ]:
             self.assertTrue( is_keyword( ok), repr(ok))
         for err in [ sym.x, 'kw.x', sym2.x, kw2.x, 3, 'x', ':x', [], (kw.x,), [kw.x], None ]:
             self.assertFalse( is_keyword( err), repr(err))

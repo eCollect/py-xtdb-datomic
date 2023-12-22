@@ -160,11 +160,17 @@ class x( base, unittest.TestCase):
                 :where [ ($ :atablename {:xt/id id } ) ]
                 :limit 1
             }"""
+            q_flat_text = """
+            {:find [ whatever ]
+                :where [ ($ :atablename [whatever] ) ]
+                :limit 1
+            }"""
             q_builder = xtq().find( sym.id
                 ).where(    #FIXME only works as plain text inside
                     #db2.List( [ edn_format.dumps( *predicate( sym('$'), kw.atablename, { me.db.id_kw : sym.id } )) ])
                     db2.Match( kw.atablename, { me.db.id_kw : sym.id } )
-                ).limit( 1
+                    #db2.Match( kw.atablename, [ sym.id ] )
+                #).limit( 1
                 )
             print( q_builder)
             r = me.db.query( q_builder)
@@ -216,6 +222,9 @@ class x( base, unittest.TestCase):
         if not V2:
             me.itest_stats( False)
             me.db.sync()
+        else:
+            return obj,OID,AID
+            #XXX V2 has no pull
 
         me.assertEqual(
             me.db.query( xtq().find( pull( var.x, whole=True)
@@ -298,7 +307,8 @@ if 10 and not V2:
         'accept' : dbclient.BaseClient._app_edn if not dbclient.RESULT_EDN else dbclient.BaseClient._app_json,   #text/plain text/html
         }
 
-class history( base, unittest.TestCase):
+if not V2:
+ class history( base, unittest.TestCase):
     #typ = 'e'   #object-types-distinguisher... or maybe PID ?
     def setUp( me):
         me.typ = time.time()

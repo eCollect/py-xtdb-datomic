@@ -1,4 +1,15 @@
 import edn_format
+Keyword = edn_format.Keyword
+Symbol  = edn_format.Symbol
+edn_dumps = edn_format.dumps
+from edn_format import edn_dump as d    #see edn_dump.udump
+Literals = (bool, str, bytes,
+        edn_format.Char, #edn_format.TaggedElement, ???
+        int, float, d.decimal.Decimal, d.fractions.Fraction,
+        d.datetime.datetime, d.datetime.date,
+        d.uuid.UUID
+        )
+
 '''
 https://github.com/edn-format/edn
 WTF...
@@ -41,7 +52,6 @@ def qs_assert_naming_non_empty_str( x):
     qs_assert_naming( x and isinstance( x, str), 'name-or-prefix needs non-empty string', x)
 
 
-edn_dumps = edn_format.dumps
 
 _nonalnum = ''.join( '. * + ! - _ ? $ % & = < >   : #'.split())
 def check_sym_name_level( x):
@@ -54,7 +64,7 @@ def check_sym_name_level( x):
 
 class edn_factory1:
     ''' factory for item of edntype   (without explicit namespace)
-    example: given kw = edn_factory1( edn_format.Keyword)
+    example: given kw = edn_factory1( Keyword)
         all these: kw.a  kw('a')
         produce Keyword( a) i.e. :a
         further level e.g. kw.a.b or kw.a('b') is not allowed.
@@ -70,14 +80,14 @@ class edn_factory1:
         qs_assert_naming_non_empty_str( k )
         name = me.pfx + k
         qs_assert_naming( name.count('/') <= 1, 'only one / allowed', name)
-        if me.ednfunc != edn_format.Symbol or name != '/':     #special case: / alone is ok
+        if me.ednfunc != Symbol or name != '/':     #special case: / alone is ok
             for p in name.split('/'): me.check_name_level( p)
         return me.ednfunc( name)
     __getattr__ = __call__
 
 class edn_factory2:
     ''' factory for item of edn_type WITH namespace - 2 level
-    example: given kw2 = edn_factory2( edn_format.Keyword)
+    example: given kw2 = edn_factory2( Keyword)
         all these: kw2.a.b  kw2( 'a', 'b')  kw2.a('b')  kw2('a').b  kw2('a','b')
         produce Keyword( a/b) i.e. :a/b
         the intermediate half kw2.a is not an edn_type ;
@@ -110,15 +120,15 @@ class edn_factory2:
         __getattr__ = __call__
 
 #single :   kw.name or kw2('?name') ..
-kw  = edn_factory1( edn_format.Keyword)
-sym = edn_factory1( edn_format.Symbol)
+kw  = edn_factory1( Keyword)
+sym = edn_factory1( Symbol)
 #prefix/name :   kw2.pfx.name or kw2('?pfx','nm') or kw2('?pfx').nm ..
-kw2 = edn_factory2( edn_format.Keyword)
-sym2= edn_factory2( edn_format.Symbol)
+kw2 = edn_factory2( Keyword)
+sym2= edn_factory2( Symbol)
 
 #datomic insists on vars having ?, xtdb does not care
-var = edn_factory1( edn_format.Symbol, pfx= '?')
-var2= edn_factory2( edn_format.Symbol, pfx= '?')
+var = edn_factory1( Symbol, pfx= '?')
+var2= edn_factory2( Symbol, pfx= '?')
 
 #https://docs.xtdb.com/language-reference/datalog-queries/
 #https://github.com/edn-format/edn
@@ -135,19 +145,12 @@ sequences = list,tuple
 def is_literal(x):
     if isinstance( x, (set,frozenset)):
         return all( is_literal(a) for a in x)   #is it really recursive?
-    from edn_format import edn_dump as d    #see edn_dump.udump
-    return x is None or isinstance( x, (bool,
-        str, bytes,
-        edn_format.Char, #edn_format.TaggedElement, ???
-        int, float, d.decimal.Decimal, d.fractions.Fraction,
-        d.datetime.datetime, d.datetime.date,
-        d.uuid.UUID
-        ))
+    return x is None or isinstance( x, Literals)
 
 def is_keyword( x):
-    return isinstance( x, edn_format.Keyword)
+    return isinstance( x, Keyword)
 def is_symbol( x):
-    return isinstance( x, edn_format.Symbol)
+    return isinstance( x, Symbol)
 is_variable = is_symbol
 def is_variable_datomic( x):
     return is_symbol(x) and x._name[0] == '?'
@@ -370,7 +373,7 @@ class qbase( dict):
         lnames = len( names)
         lfinds = len( me.get( kw.find) or ())
         qs_assert( lnames == lfinds, f'needs len(names)={lnames} to equal len(find-results)={lfinds}')
-        qs_assert_many( names, lambda k: k and isinstance( k, (str, edn_format.Symbol)),
+        qs_assert_many( names, lambda k: k and isinstance( k, (str, Symbol)),
             'names: strs or symbols')
         vnames = vector( sym( k) if isinstance( k, str) else k for k in names)
         qs_assert( len( vnames) == len( set( vnames)), 'repeating names', names)
@@ -575,9 +578,9 @@ if __name__ == '__main__':
     else: assert 0*'AttributeError not raised'
 
     testdump(
-        { edn_format.Keyword('find'): [ edn_format.Symbol('p')] ,
-          edn_format.Keyword('where'): [
-            [ edn_format.Symbol('p'), edn_format.Keyword('age'), 5  ]
+        { Keyword('find'): [ Symbol('p')] ,
+          Keyword('where'): [
+            [ Symbol('p'), Keyword('age'), 5  ]
             ] }
         , '{:find [p] :where [[p :age 5]]}'
         )

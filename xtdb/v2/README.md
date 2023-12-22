@@ -54,3 +54,9 @@ so http has only:
 
 * overall it seems too few common overlaps with v.1, so separated it into own db2.xtdb2 client. Note: tests need env-var XTDB2=something to switch between clients
 
+
+version of nov.15:
+
+* GET /openapi.yaml -> json
+* GET /status → ts+json : works same
+..

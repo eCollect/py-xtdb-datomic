@@ -1,7 +1,7 @@
 from base.rpc_edn_json_http import BaseClient, dict_without_None, hacks, log
 import edn_format
-kw = edn_format.Keyword
-from edn_format import dumps as edn_dumps
+Keyword = edn_format.Keyword
+edn_dumps = edn_format.dumps
 import datetime, json
 
 RESULT_EDN = True
@@ -12,7 +12,7 @@ if RESULT_EDN:
         k = k.name  #without the initial ':'
         return hacks.kebab2camel( k, skip_first_level= k.startswith('xtdb.api/'))
     def keyword_into_str_kebab2camel( k):
-        return kebab2camel_skip_system_no_colon( k) if isinstance( k, edn_format.Keyword) else k
+        return kebab2camel_skip_system_no_colon( k) if isinstance( k, Keyword) else k
     hacks.edn_response_Keyword_into_str( maps_keys= True, maps_values= True, lists= True, keyword_into_str= keyword_into_str_kebab2camel)
     edn_format.add_tag( 'xtdb/id', lambda name: name )
     hacks.pprint_fix_immmutables()  #not really needed but..
@@ -116,8 +116,8 @@ class xtdb_read( BaseClient):
     def slowest_queries    ( me): return me._get( 'slowest-queries'     )
     def swagger_json       ( me): return me._get( 'swagger.json'        )
 
-    kw_query = edn_format.Keyword( 'query')
-    kw_in_args = edn_format.Keyword( 'in-args')
+    kw_query = Keyword( 'query')
+    kw_in_args = Keyword( 'in-args')
     def query_post( me, query, *in_args, keyword_keys =False, **ka):
         ''' POST /_xtdb/query
         https://docs.xtdb.com/clients/http/#post-query
@@ -262,13 +262,13 @@ class xtdb_read( BaseClient):
     #each document MUST have xt/id key
     #XXX further sub-struct levels may have that too but it is just data there (tested)
     id_name = 'xt/id'       #use in objs/dicts i/o data , in json
-    id_kw   = edn_format.Keyword( id_name)
+    id_kw   = Keyword( id_name)
 
     #system-namespace
     ns_api_name = 'xtdb.api/'       #use in json
     @classmethod
     def ns_api_kw( klas, name):
-        return edn_format.Keyword( klas.ns_api_name + name)
+        return Keyword( klas.ns_api_name + name)
 
 class xtdb( xtdb_read):
     ''' +write
@@ -327,7 +327,7 @@ class xtdb( xtdb_read):
             data = json.dumps( ops )
         else:
             docs = [ [ me.ns_api_kw( d[0]), *d[1:]] for d in docs ]    #keywordize
-            ops = { edn_format.Keyword('tx-ops'): docs }
+            ops = { Keyword('tx-ops'): docs }
             if tx_time:
                 #assert 0, 'this does not work via json' #TODO below edn_dumps.. then try again
                 #tx_time = edn_dumps( tx_time)
@@ -364,7 +364,7 @@ class xtdb( xtdb_read):
         no automatics
         #TODO some inside-doc valid/end-time that may or may not be funcs
         '''
-        if as_json or 1:
+        if as_json :# or 1:
             assert doc.get( me.id_name), doc    #for json
         else:
             assert doc.get( me.id_kw), doc    #for edn
@@ -392,7 +392,7 @@ class xtdb( xtdb_read):
         '''
         if isinstance( funcname, str): funcname = qs.kw( funcname)
         assert qs.is_keyword( funcname), funcname
-        #if not isinstance( body, str): body = edn_format.dumps( body)
+        #if not isinstance( body, str): body = edn_dumps( body)
         return { qs.kw2.xt.id: funcname, qs.kw2.xt.fn: body }
     @staticmethod
     def make_tx_func_use( funcname, *args):

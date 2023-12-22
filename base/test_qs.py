@@ -1,4 +1,5 @@
-from .qsyntax import edn_format, kw, kw2, sym, sym2, var, sym_ellipsis, var_attr_value, _text2maplines, qbase as q
+from .qsyntax import edn_dumps, Keyword, Symbol
+from .qsyntax import kw, kw2, sym, sym2, var, sym_ellipsis, var_attr_value, _text2maplines, qbase as q
 from . import qsyntax as qs    #for all else
 import unittest
 import re
@@ -7,7 +8,7 @@ class Base:
     maxDiff = None
 
     def assert_dumps( me, input, exp, liner =False):
-        res = edn_format.dumps( input)
+        res = edn_dumps( input)
         if liner: res,exp = (_text2maplines(x) for x in (res,exp))
         return me.assertEqual( res, exp)
 
@@ -295,9 +296,9 @@ class Query( Base, unittest.TestCase):
 
     def test_equivalence_struct_vs_translate_vs_qbuild(me):
         struct_edn = {
-            edn_format.Keyword('find'): [ edn_format.Symbol('p')] ,
-            edn_format.Keyword('where'): [
-                [ edn_format.Symbol('p'), edn_format.Keyword('age'), 5  ]
+            Keyword('find'): [ Symbol('p')] ,
+            Keyword('where'): [
+                [ Symbol('p'), Keyword('age'), 5  ]
             ] }
         struct_translate = { kw.find: [ sym.p ] , kw.where: [ [ sym.p, kw.age, 5 ],] }
         query = q().find( sym.p ).where( var_attr_value( sym.p, kw.age, 5  ))
@@ -313,10 +314,10 @@ class Query( Base, unittest.TestCase):
 
     def test_equivalence_struct_vs_translate_vs_qbuild2(me):
         struct_edn = {
-            edn_format.Keyword('find'): [ edn_format.Symbol('p'), edn_format.Symbol('?q')] ,
-            edn_format.Keyword('where'): [
-                [ edn_format.Symbol('p'), edn_format.Keyword('age'), 5  ],
-                [ edn_format.Symbol('p'), edn_format.Keyword('name'), edn_format.Symbol('?q')  ]
+            Keyword('find'): [ Symbol('p'), Symbol('?q')] ,
+            Keyword('where'): [
+                [ Symbol('p'), Keyword('age'), 5  ],
+                [ Symbol('p'), Keyword('name'), Symbol('?q')  ]
             ] }
         struct_translate = {
                 kw.find: [ sym.p, var.q ] ,
