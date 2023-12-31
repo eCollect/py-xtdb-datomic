@@ -2,16 +2,20 @@
 
 * id-auto-generate in wrapper: set up objmapper._db_id_generator
   * try external-id-generator: e.g. https://github.com/sony/sonyflake
+    * XXX depend on system time being monotonous, i.e. only increasing
   * try internal uuid6.uuid7 : single node
     * for multinode, overwrite some 8 bits with unique node-id (2^8=256 nodes)
       - either .uuid7 over last 8 rand_b bits , or .uuid8 over whole subsec_b (8-bit, lsb)
+    * XXX probably also depend on system time being monotonous
 
-* v2: edn vs transit+json :
+* xtdb/v2: edn vs transit+json :
   * use own independent keyword, symbol, immutable_dict/list
     * rework qsyntax-atoms: keyword, symbol, immutable_dict/list, to be independent of edn-or-whatever
       * also see xtdb.astory2xt: Keyword.__repr__/__lt__
     * rework rpc/dbclients: convert above between independent and edn-or-whatever
   * or (now) use edn_format.*, convert to/from transit
+
+* xtdb/v2: is now very different from v1.. needs some rework of dbclient, and big rework of xtq/query-ing, and then most tests too
 
 ###########
 
