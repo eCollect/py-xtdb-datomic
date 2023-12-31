@@ -11,6 +11,10 @@ op_match = Symbol( '$')
 class Match( List):
     def __new__( me, *a):
         return super().__new__( me, op_match, *a)
+class XTQL( List):
+    pass
+class XTQLput( List):
+    pass
 
 def transit_dumps( x):
     #print( 333333, x)
@@ -31,7 +35,7 @@ def transit_dumps( x):
     class MapHandler2( MapHandler):
         @staticmethod
         def rep(m):
-            return dict( (tj_Keyword( k) if not isinstance(k, Keyword) else k,v)
+            return dict( (tj_Keyword( k) if not isinstance(k, (Keyword,tj_Keyword)) else k,v)
                     for k,v in m.items())
     w.register( Keyword, KeywordHandler2 ) #w.marshaler.handlers[
     w.register( Symbol,  SymbolHandler ) #w.marshaler.handlers[
@@ -42,11 +46,35 @@ def transit_dumps( x):
         def tag(_): return 'xtdb/list'
         @staticmethod
         def rep(s): return edn_format.dumps( s)
-    w.register( List,  ListHandler)     #tuple==list==array/vector
+    if 0:
+        w.register( List,  ListHandler)     #tuple==list==array/vector
+    class XTQLHandler( SetHandler):
+        @staticmethod
+        def tag(_): return 'xtdb.tx/xtql'
+        #@staticmethod
+        #def rep(s): return edn_format.dumps( s)
+    w.register( XTQL, XTQLHandler)
+    class XTQLputHandler( SetHandler):
+        @staticmethod
+        def tag(_): return 'xtdb.tx/put'
+        @staticmethod
+        def rep(s):
+            #return s
+            return tuple( s)
+            #return edn_format.dumps( s)
+    w.register( XTQLput, XTQLputHandler)
 
     w.write( x )
-    print( 'tj-dump\n  in', x, '\n  out', buf.getvalue(), '\n  edn', edn_format.dumps( x))
-    return buf.getvalue()
+    value = buf.getvalue()
+    print( '\n  '.join( ['tj-dump',
+        'in: '+ str(x),
+        'out: '+ value,
+        'edn:'+ edn_format.dumps( x),
+        'und:'+ str( transit_loads( value)),
+        ]))
+    return value
+
+from transit import transit_types
 
 def transit_loads( x):
     from transit.reader import Reader
@@ -140,6 +168,23 @@ class xtdb2_read( db1.BaseClient):
         #return me._post( 'query' if not me.is_v2 else 'datalog',
     query = query_post
 
+    def _content( me, r):
+        contentype = r.headers.get( 'content-type', '')
+        if me._app_transit_json in contentype:
+            return transit_loads( r.text)
+        return super()._content( r)
+
+    def _post( me, *a,**ka):
+        try:
+            return super()._post( *a,**ka)
+        except RuntimeError as e:
+            r = e.response
+            cooked = me._content( r)
+            if cooked: #me._app_transit_json in contentype:
+                text = str( cooked) #transit_loads( r.text))
+                e.args = ( e.args[0] + '\n>>>> '+text, *e.args[1:] )
+            raise
+
 class xtdb2( xtdb2_read):
     def submit_tx( me, docs, tx_time =None, put_valid_time =None, put_end_valid_time =None):
         #TODO inside-doc valid/end-time that may or may not be funcs
@@ -163,7 +208,10 @@ class xtdb2( xtdb2_read):
 
         kargs = {}
         #tx-type tablename ..all-else..
-        docs = [ [ Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
+        #docs = [ [ Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
+        docs = [ XTQL( op, Keyword( tbl), *rest )
+                    for op,tbl,*rest in docs ]    #xtql-dec23
+            #XTQLput( Keyword('aa'), { 'c': 123 } )
         ops = {'tx-ops': docs }     #XXX assume auto key->keyword
         #ops[ 'opts' ] = {}         #general for whole tx
         data = transit_dumps( ops)
@@ -189,6 +237,7 @@ class xtdb2( xtdb2_read):
     def make_tx_erase( me, eid, valid_time =None, end_valid_time =None, table ='atablename'):
         r = me.make_tx_del( eid, valid_time, end_valid_time, table)
         return [ 'erase', *r[1:]]
+    #TODO : insert-into update-table delete-from erase-from assert-exists assert-not-exists
     @staticmethod
     def make_tx_func_decl( funcname, body):
         if isinstance( funcname, str): funcname = qs.kw( funcname)

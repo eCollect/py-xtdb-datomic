@@ -60,3 +60,9 @@ version of nov.15:
 * GET /openapi.yaml -> json
 * GET /status → ts+json : works same
 ..
+
+version of dec.2x: needs complete rework/redesign
+* XTQL complete first-cut - https://docs.xtdb.com/reference/main.html
+* GET /openapi.yaml -> yaml
+* GET /status → ts+json or json
+

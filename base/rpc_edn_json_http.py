@@ -190,20 +190,24 @@ class BaseClient:
         return purl
         #pp_rqurl = pformat( purl)
 
+    def _content( me, r):
+        contentype = r.headers.get( 'content-type', '')
+        if me._app_json in contentype:
+            return r.json()
+        if me._app_edn in contentype:
+            return edn_format.loads( r.content)     #or r.text?
+
     debug = False
     def _response( me, r):
+        raw = r.content
+        cooked = me._content( r)
         if me.debug:
             purl = me._pretty_req( r)
             print( pformat( purl))
-            print( r, r.headers, r.content)
+            print( r, r.headers, f'{raw=} {cooked=}')
         if r.ok: #status_code in (200, *extra_ok_statuses):
             #accept = r.request.headers[ 'accept']
-            contentype = r.headers[ 'content-type']
-            if me._app_json in contentype:
-                return r.json()
-            if me._app_edn in contentype:
-                return edn_format.loads( r.content)
-            return r.content
+            return cooked or raw
 
         purl = me._pretty_req( r)
         pp_rqurl = pformat( purl)
