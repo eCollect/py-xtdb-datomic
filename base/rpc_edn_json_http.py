@@ -15,7 +15,7 @@ class hacks:
         _generate = pyrfc3339.generator.generate
         @functools.wraps( _generate)
         def generate( *a,**ka):
-            return _generate( accept_naive=True, *a,**ka)
+            return _generate( *a,**dict( ka, accept_naive= True))
         pyrfc3339.generator.generate = pyrfc3339.generate = generate
 
     @staticmethod
@@ -99,6 +99,15 @@ class BaseClient:
     @staticmethod
     def may_bool( x):
         assert x is None or isinstance( x, bool), x
+        return x
+
+    @staticmethod
+    def is_time( x):
+        assert isinstance( x, datetime.datetime), x
+        return x
+    @staticmethod
+    def may_time( x):
+        assert x is None or isinstance( x, datetime.datetime), x
         return x
 
     @staticmethod
@@ -207,7 +216,7 @@ class BaseClient:
             print( r, r.headers, f'{raw=} {cooked=}')
         if r.ok: #status_code in (200, *extra_ok_statuses):
             #accept = r.request.headers[ 'accept']
-            return cooked or raw
+            return cooked if cooked is not None else raw
 
         purl = me._pretty_req( r)
         pp_rqurl = pformat( purl)
