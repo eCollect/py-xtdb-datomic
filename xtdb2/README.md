@@ -1,23 +1,25 @@
-see: https://www.xtdb.com/blog/2x-early-access  and  https://www.xtdb.com/learn/what-is-xtdb 2.x :
+none of this works yet properly
+at least for XTDB 2.x (pre-alpha) @ "dev-SNAPSHOT" @ 7ef8b33
 
-examples: https://www.xtdb.com/v2  
+https://docs.xtdb.com/index.html
+https://docs.xtdb.com/reference/main.html
 
-reference: https://www.xtdb.com/reference/main/installation   
+older:
+ see: https://www.xtdb.com/blog/2x-early-access  and  https://www.xtdb.com/learn/what-is-xtdb 2.x :
+ examples: https://www.xtdb.com/v2  
 
-is built around https://arrow.apache.org/  - modern scalable columnar store
 
+* https://github.com/xtdb/xtdb/blob/2.x/img/xtdb-node-1.svg
+* built around https://arrow.apache.org/  - columnar store
 * allows compression, vectorized processing, sparse data
-* cloud-native
-* role of Kafka (transaction-log) is reduced - just a 'Write-Ahead Log’ (i.e. it is safe to truncate eventually) 
-* native SQL dialect (apart of Datalog)
+* role of transaction-log/Kafka-or-else is reduced - just a 'Write-Ahead Log’ (i.e. no need of retention=forever, it is safe to truncate eventually) 
+* new composable language - XTQL (Datalog-like , see unify)
+* native SQL dialect
 * full bitemporality in querying (time ranges)
 * arbitrary nested data access/querying - match
 * gradual schema (maybe, still schema-less)
-* https://github.com/xtdb/xtdb/blob/2.x/doc/img/xtdb-node-1.svg
 
-some more details/diffs at https://github.com/xtdb/xtdb/tree/2.x 
-
-all else is still same , including NO builtin referential integrity etc constraints (see https://www.xtdb.com/learn/key-concepts  at end) - DIY with transaction funcs
+* * transactions have has assert-exists/notexists-over-query as mechanism for constraints
 
 some discussion: https://discuss.xtdb.com/t/several-questions-on-2-0/206 
 
@@ -25,19 +27,20 @@ some discussion: https://discuss.xtdb.com/t/several-questions-on-2-0/206
 findings:
 
 * all operations require a tablename to associate the data with it
-* no Lucene support for now, or anything above bare functionality
-* seems the only http-encoding used is transit+json:
+* nothing above bare functionality
+* full-text-search would be external
+* http-encoding is transit+json (and maybe json-LD later?):
   * Has own Keyword, Symbol , no auto-key-to-keyword convertions etc somewhat different from edn_format
   * python - https://github.com/cognitect/transit-python - not updated since py3.5 ~abandoned ; works ok after few patches of collections.abc namespace
     * updated fork (py3.6+) at https://github.com/3wnbr1/transit-python2/ - no semantical diffs
     * for whatever reason, list and tuple are both mapped to their Array, while their List is unmapped
   * tweaks so far:
-    * try reuse the edn-format tweaks, so convert keywords and frozendict into edn ones , then auto- convert dict keys into keywords , convert kebab-case to camel-case, etc
+    * reuse the edn-format tweaks, so convert keywords and frozendict into edn ones , then auto- convert dict keys into keywords , convert kebab-case to camel-case, etc
 
 * NO http documentation, so it’s reverse engineering and MITMproxying between a Clojure Repl made with  , and the (docker) xtdb-server
   * client-my-playground-dev/user.clj - require xtdb.api instead of datalog, and check http-host+port there
 
-so http has only:
+ver.~jun14:
 
 * GET /swagger.json → json : contains proper (?) stuff but without any further description
 * GET /status → ts+json : works, yields dict with only lastCompleted / lastSubmitted xtdb/tx-key maps
@@ -65,4 +68,7 @@ version of dec.2x: needs complete rework/redesign
 * XTQL complete first-cut - https://docs.xtdb.com/reference/main.html
 * GET /openapi.yaml -> yaml
 * GET /status → ts+json or json
+
+* /tx ~~ needs obj types "xtdb.tx/xtql" or type "xtdb.tx/put" .. then maybe works but something inside server dies - indexer or else
+* /query ~~ does not - Request coercion failed. 
 

@@ -1,5 +1,4 @@
 from .dbclient import xtdb
-from .db2      import xtdb2
 from . import qsyntax as qs
 import base.rpc_edn_json_http
 import edn_format
@@ -16,10 +15,8 @@ if 1:
 
 import os
 URLROOT = os.getenv( 'XTDB') or 'http://localhost:3001'
-V2 = bool( os.getenv( 'XTDB2'))
-URL = URLROOT.rstrip('/') + ('' if V2 else '/_xtdb')
+URL = URLROOT.rstrip('/') + '/_xtdb'
 HEADERS = {'accept': 'application/edn', 'content-type': 'application/json'}
-xtdbx = xtdb2 if V2 else xtdb
 
 class Gets( unittest.TestCase):
     datetext = '2023-01-11T11:37:07.649+00:00'      #with-tz
@@ -28,7 +25,7 @@ class Gets( unittest.TestCase):
     assert edn_format.dumps( datetime) == datetext_edn
 
     def setUp(self):
-        self.db = xtdbx( URLROOT)
+        self.db = xtdb( URLROOT)
         #self.fake = base.rpc_edn_json_http.requests.get = MagicMock(return_value='x')
         self.fakeget = patch( 'base.rpc_edn_json_http.requests.get') # = MagicMock(return_value='x')
         self.fake = self.fakeget.start()
@@ -171,12 +168,12 @@ class Gets( unittest.TestCase):
         with self.assertRaisesRegex( AssertionError, 'needs exactly one of'):
             entity_history()
 
-URLquery = f'{URL}/query'#if not V2 else f'{URL}/datalog'   #TODO only intermediate, future v2 should be /query again
+URLquery = f'{URL}/query'
 HEADERSedn = {'accept': 'application/edn', 'content-type': 'application/edn'}
 
 class Posts(unittest.TestCase):
     def setUp(self):
-        self.db = xtdbx( URLROOT)
+        self.db = xtdb( URLROOT)
         self.fake = base.rpc_edn_json_http.requests.post = MagicMock(return_value='x')
         self.datetext = '2023-01-11T11:37:07.649'
         self.datetime = datetime.datetime.fromisoformat( self.datetext)

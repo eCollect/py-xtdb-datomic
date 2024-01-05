@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from dbclient import xtdb, log, edn_dumps
+from xtdb.dbclient import xtdb, log, edn_dumps
+from xtdb2.dbclient import xtdb2
 import datetime
 from pprint import pprint
 
 import os
 PORT= os.getenv( 'PORT') or '3001'
 URL = os.getenv( 'XTDB') or f'http://localhost:{PORT}'
-db = xtdb( URL)
+V2 = bool( os.getenv( 'XTDB2'))
+db = xtdb( URL) if not V2 else xtdb2( URL)
 
 if 10:
     from faker import Faker
@@ -40,7 +42,7 @@ if 10:
         avg = []
         avgdt = []
         t0 = dt = None
-        for x in range( int( os.getenv('N') or 100+0)):
+        for x in range( int( os.getenv('N') or 10+0)):
             docs = [fake_doc_xt( fake) for _ in range(100)]
             #log( db.tx, docs)
             t = time()

@@ -44,14 +44,6 @@ class xtdb_read( BaseClient):
     '''
 
     #params validators
-    @staticmethod
-    def is_time( x):
-        assert isinstance( x, datetime.datetime), x
-        return x
-    @staticmethod
-    def may_time( x):
-        assert x is None or isinstance( x, datetime.datetime), x
-        return x
     is_tx_id  = staticmethod( BaseClient.is_int)
     may_tx_id = staticmethod( BaseClient.may_int)
 
@@ -96,11 +88,10 @@ class xtdb_read( BaseClient):
 
     ######
 
-    _headers_base = {
-        #'accept' : BaseClient._app_json,   #text/plain text/html
-        'accept' : BaseClient._app_edn if RESULT_EDN else BaseClient._app_json,   #text/plain text/html
-        **BaseClient._headers_content_json,
-        }
+    _headers_base = dict(
+        BaseClient._headers_content_json,
+        accept= BaseClient._app_edn if RESULT_EDN else BaseClient._app_json,   #text/plain text/html
+        )
 
     def url( me, url ):
         return super().url( '_xtdb', url )      #v1
@@ -370,7 +361,7 @@ class xtdb( xtdb_read):
             assert doc.get( me.id_kw), doc    #for edn
         return [ 'put', dict(doc), *me._check_tx_end_valid_time( valid_time, end_valid_time)]
     @classmethod
-    def make_tx_del( klas, eid, valid_time =None, end_valid_time =None):
+    def make_tx_delete( klas, eid, valid_time =None, end_valid_time =None):
         return [ 'delete', eid, *klas._check_tx_end_valid_time( valid_time, end_valid_time)]
     @classmethod
     def make_tx_match( klas, eid, doc, valid_time =None):

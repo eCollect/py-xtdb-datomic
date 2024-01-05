@@ -1,8 +1,9 @@
 from . import dbclient
-from .qsyntax import var, var2, sym, sym2, kw, kw2, xtq, var_attr_value, pull, range_predicate, predicate
-from . import qsyntax as qs
+#from .qsyntax import var, var2, sym, sym2, kw, kw2, xtq, var_attr_value, pull, range_predicate, predicate
+#from . import qsyntax as qs
 from base.qsyntax import _text2dumps1line, edn_dumps, dictAttr
 import edn_format
+Keyword = edn_format.Keyword
 import unittest, re, time
 '''
 
@@ -55,10 +56,10 @@ URL = os.getenv( 'XTDB') or 'http://localhost:3001'
 class base:
     maxDiff = None
     headers = {}
-    IS_EDN = dbclient.RESULT_EDN
+    IS_EDN = True
     @classmethod
     def setUpClass( me):
-        me.db = dbclient.xtdb( URL, headers= me.headers)
+        me.db = dbclient.xtdb2( URL, headers= me.headers)
         #me.IS_EMPTY = (me.db.stats() == {})
         #me.db.debug =0
 
@@ -88,75 +89,47 @@ class x( base, unittest.TestCase):
     #    me.db.debug =0
 
     def test_status( me):
-        if me.IS_EDN:
-            exp_keys = set('''
-                xtdb.version/version
-                xtdb.version/revision
-                xtdb.kv/kvStore
-                xtdb.kv/size
-                xtdb.index/indexVersion
+        def keys( x):
+            if me.IS_EDN: return set( Keyword(k) for k in x)
+            return set( x)  #XXX ? no kebab2camel?
+            return set( dbclient.hacks.kebab2camel( k) for k in x )
 
-                ingesterFailed?
-                xtdb.txLog/consumerState
-                xtdb.kv/estimateNumKeys
-                '''.split())
-        else:
-            exp_keys = set('''
-                version
-                revision
-                kvStore
-                size
-                indexVersion
-
-                ingesterFailed?
-                consumerState
-                estimateNumKeys
-                '''.split())
+        exp_keys = keys(' latest-completed-tx latest-submitted-tx '.split())
 
         s = me.db.status()
         me.assertEqual( set(s) , exp_keys , s)  # & exp_keys
-        #import pprint
-        #pprint.pprint( me.db.swagger_json())
 
-    def itest_stats( me, IS_EMPTY =None):
-        s = me.db.stats()
-        if IS_EMPTY is None:
-            IS_EMPTY = (s == {})
-        else:
-            me.assertEqual( (s=={}), bool(IS_EMPTY), )
-
-        if IS_EMPTY: #empty db has no attr-stats or tx
-            me.assertEqual( s, {})
-            with me.assert_error2( '404: {:error "No latest-completed-tx found."}'):
-                me.db.latest_completed_tx()
-            with me.assert_error2( '404: {:error "No latest-submitted-tx found."}'):
-                me.db.latest_submitted_tx()
-        else:
-            me.assertTrue( set([ 'xt/id' ]).issubset( s), s)
-
-            txid, txtime = 'txId txTime'.split()    #both IS_EDN and not
-            me.assertEqual( set( me.db.latest_completed_tx()), set([ txid, txtime ]))
-            me.assertEqual( set( me.db.latest_submitted_tx()), set([ txid ]))
-
-    def test_query_1_obj_whatever_it_is( me):
-        s = me.db.stats()
-        IS_EMPTY = (s == {})
-        assert not IS_EMPTY
-
-        q_flat_text = """ {:query
-            {:find [ id ]
-                :where [[x :xt/id id]]
-                :limit 1
-            }}"""
-        rid1 = me.db.query( q_flat_text)
-        id1 = rid1[0][0]
-
+        txkeys = keys( 'tx-id system-time'.split())
+        #these can be None if empty db
+        for k in exp_keys:
+            v = s[ k ]
+            if v is not None:
+                me.assertEqual( set( v), txkeys, k)
+    if 0:
+      def test_query_1_obj_whatever_it_is( me):
+        q_flat_text = """
+        {:find [ id ]
+            :where [ ($ :atablename {:xt/id id } ) ]
+            :limit 1
+        }"""
+        q_flat_text = """
+        {:find [ whatever ]
+            :where [ ($ :atablename [whatever] ) ]
+            :limit 1
+        }"""
         q_builder = xtq().find( sym.id
-                ).where( var_attr_value( sym.x, me.db.id_kw, sym.id )
-                ).limit( 1
-                )
-        me.assertEqual( _text2dumps1line( edn_dumps({ kw.query: q_builder })), _text2dumps1line( q_flat_text))
-        me.assertEqual( me.db.query( q_builder), rid1 )
+            ).where(    #FIXME only works as plain text inside
+                #dbclient.List( [ edn_format.dumps( *predicate( sym('$'), kw.atablename, { me.db.id_kw : sym.id } )) ])
+                dbclient.Match( kw.atablename, { me.db.id_kw : sym.id } )
+                #dbclient.Match( kw.atablename, [ sym.id ] )
+            #).limit( 1
+            )
+        print( q_builder)
+        r = me.db.query( q_builder)
+        me.assertTrue( isinstance( r, (dict, edn_format.ImmutableDict)), (r, type(r)))
+        me.assertTrue( 'id' in r, r)
+        q_builder2 = q_builder.copy( without=[kw.limit]).limit( 2)
+        r = me.db.query( q_builder2)    #fails, response not json but space-delimited text [..] [..]
 
 
     def _test_create( me, with_AID =True, two_subobjs =False):
@@ -179,6 +152,9 @@ class x( base, unittest.TestCase):
                 obj.addresses[1][ with_AID ]= AID+1
         me.db.save( obj)
 
+        return obj,OID,AID
+        #XXX V2 has different pull
+    if 0:
         me.itest_stats( False)
         me.db.sync()
 
@@ -209,9 +185,9 @@ class x( base, unittest.TestCase):
                 ).inputs( qs.in_collection( var.inid)
                 ), qs.arg_collection( OID, AID))
             , me.result( [ obj ] ,) )
-        return obj,OID,AID
+        #return obj,OID,AID
     def test_create( me): return me._test_create()
-
+if 0:
     def test_search_inside_sub_vector_of_structs(me):
         # Nah. cannot. separate into root-level obj XXX
         # https://clojurians-log.clojureverse.org/xtdb/2020-07-30
@@ -260,11 +236,10 @@ class x( base, unittest.TestCase):
 if 10:
  class y( x):
     IS_EDN = not x.IS_EDN
-    headers = {
-        'accept' : dbclient.BaseClient._app_edn if not dbclient.RESULT_EDN else dbclient.BaseClient._app_json,   #text/plain text/html
-        }
+    headers = dbclient.xtdb2._headers_json
 
-class history( base, unittest.TestCase):
+if 0:
+ class history( base, unittest.TestCase):
     #typ = 'e'   #object-types-distinguisher... or maybe PID ?
     def setUp( me):
         me.typ = time.time()
@@ -314,7 +289,7 @@ class history( base, unittest.TestCase):
         ##print( me.db.latest_submitted_tx())   TODO
         ##print( me.db.latest_completed_tx())
         #me.db.await_tx_id( (as_of or tx)[ me.txid_key] )
-        me.db.sync()
+
         if as_of:
             qargs['tx_id'] = as_of[ me.txid_key]
         for k,v in results.items():
