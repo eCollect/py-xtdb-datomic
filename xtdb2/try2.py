@@ -11,7 +11,7 @@ PORT= os.getenv( 'PORT') or '3001'
 URL = os.getenv( 'XTDB') or f'http://localhost:{PORT}'
 db = xtdb2( URL)
 
-log( db.status )
+#log( db.status )
 
 docs = [
     dict( a=1, b='bb'),
@@ -20,14 +20,17 @@ docs = [
 for d in docs: d.update( { db.id_name: uuid.uuid4() })
 #no tablename - use single default, atablename
 
-#log( db.tx, docs  )
+log( db.tx, docs  )
+
 kwFROM = kw('from')
 symFROM = sym('from')
-log( db.query_post,
+log( db.query,
     #'from :atablename [a b c]' -> expects SQL
     #{ 'from': 'atablename', 'bind': ['a', 'b', 'c'] }  #no
-    #( symFROM, kw('atablename'), [ sym(x) for x in ['a', 'b', 'c' ]] ) #no
-    ( symFROM, kw('atablename'), [ sym(x) for x in ['a', 'b', 'c' ]] )  #no
+    ( sym('->'),
+     ( symFROM, kw('atablename'), [ sym(x) for x in ['a', 'b', 'c' ]] ) ,
+     ( sym('where'), (sym('='), sym('a'), 2 )),
+    )
 
     #[ sym('->'),
     #    ( symFROM, kw('atablename'), [ sym(x) for x in ['a', 'b', 'c' ]] )

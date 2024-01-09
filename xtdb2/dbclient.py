@@ -8,16 +8,9 @@ edn_dumps = edn_format.dumps
 import pprint
 
 class List( tuple):
-    'for the query operators like match, subquery.. - ($ (q (left-join etc' # FIXME
     def __new__( me, *a):
         return super().__new__( me, a)
-op_match = Symbol( '$')
-class Match( List):
-    def __new__( me, *a):
-        return super().__new__( me, op_match, *a)
-class XTQL( List):
-    pass
-class XTQLput( List):
+class XTQLop( List):
     pass
 
 def transit_dumps( x):
@@ -27,7 +20,7 @@ def transit_dumps( x):
         for c in 'MutableMapping Mapping Hashable'.split():
             setattr( collections, c, getattr( collections.abc, c))
     from transit.writer import Writer
-    from transit.write_handlers import KeywordHandler, SymbolHandler, MapHandler, SetHandler, TaggedMap
+    from transit.write_handlers import KeywordHandler, SymbolHandler, MapHandler, SetHandler, TaggedMap, ArrayHandler
     from transit.transit_types import Keyword as tj_Keyword
     from io import StringIO
     buf = StringIO()
@@ -45,28 +38,21 @@ def transit_dumps( x):
     w.register( Symbol,  SymbolHandler ) #w.marshaler.handlers[
     w.register( dict,  MapHandler2 ) #w.marshaler.handlers[
 
-    class ListHandler( SetHandler):
+    class ListHandler:
         @staticmethod
-        def tag(_): return 'xtdb/list'
+        def tag(_): return 'list'
         @staticmethod
-        def rep(s): return edn_dumps( s)
-    if 0:
-        w.register( List,  ListHandler)     #tuple==list==array/vector
-    class XTQLHandler( SetHandler):
+        def rep(s): return list(s)
+    if 1:
+        #w.register( List,  ListHandler)     #tuple==list==array/vector
+        w.register( tuple, ListHandler)     #tuple -> xtdb/list i.e. sequence ; list -> vector
+
+    class XTQLopHandler:
         @staticmethod
-        def tag(_): return 'xtdb.tx/xtql'
-        #@staticmethod
-        #def rep(s): return edn_dumps( s)
-    w.register( XTQL, XTQLHandler)
-    class XTQLputHandler( SetHandler):
+        def tag(s): return 'xtdb.tx/'+s[0]
         @staticmethod
-        def tag(_): return 'xtdb.tx/put'
-        @staticmethod
-        def rep(s):
-            #return s
-            return tuple( s)
-            #return edn_dumps( s)
-    w.register( XTQLput, XTQLputHandler)
+        def rep(s): return s[1]
+    w.register( XTQLop, XTQLopHandler)
 
     w.write( x )
     value = buf.getvalue()
@@ -80,10 +66,12 @@ def transit_dumps( x):
 
 from transit import transit_types
 
-def transit_loads( x):
+def transit_loads( x, multi =False):
     from transit.reader import Reader
     from io import StringIO
     #x = x.decode( 'utf8')      #hope it's utf8 XXX
+    if multi:
+        x = '[' + x.replace( '] [', '],[') + ']'    #jsonize a space-delimited stream of jsons
     buf = StringIO( x)
     #from transit.reader import JsonUnmarshaler
     #r = JsonUnmarshaler().load( buf)
@@ -97,15 +85,14 @@ def transit_loads( x):
         #SymbolHandler.from_rep = staticmethod( Symbol )
         #CmapHandler.from_rep = staticmethod( lambda cmap: dict( pairs( cmap))) not needed if below frozendict
         transit_types.frozendict = edn_format.ImmutableDict #dict   auto keyword2str, kebab2camel, etc
-        transit_types.TaggedValue.__repr__ = lambda me: me.tag+'::\n   '+pprint.pformat( me.rep).replace('\n','\n   ')
+        transit_types.TaggedValue.__repr__ = lambda me: me.tag+'::::\n   '+pprint.pformat( me.rep).replace('\n','\n   ')
         r.register( 'time/instant', DateHandler)
         class txkey_dict( edn_format.ImmutableDict ): pass  #dict
         class txkey_handler: from_rep = txkey_dict
         r.register( 'xtdb/tx-key', txkey_handler)
-        if 0:
-            r.register( 'xtdb/list', ListHandler)
 
     rr = r.read( buf)
+    #rr = list( r.readeach( buf))   #hangs forever
     #print( 5555, rr)
     #if isinstance( rr, dict):
     #    for k,v in  list( rr.items()): print( k,'::', v, type(v))
@@ -144,17 +131,16 @@ class xtdb2_read( BaseClient):
         accept= BaseClient._app_json,
         )
 
-    def _response( me, r):
+    if 0:
+      def _response( me, r, tj_multi =False):
         result = super()._response( r)
         if isinstance( result, bytes):
-            return transit_loads( result.decode( 'utf8'))  #hope it is utf8 ?
+            return transit_loads( result.decode( 'utf8'), multi= tj_multi)  #hope it is utf8 ?
         return result
 
     id_name = 'xt/id'       #use in objs/dicts i/o data , in json
     id_sql  = id_name.replace( '/', '$')
     id_kw   = Keyword( id_name)
-    name_query = 'query'
-    name_in_args = 'args'
 
     ##### rpc methods
     debug = 1
@@ -163,32 +149,27 @@ class xtdb2_read( BaseClient):
     def latest_submitted_tx( me): return me.status()[ 'latestSubmittedTx' ]
     def openapi_yaml( me): return me._get( 'openapi.yaml')
 
-    def query_post( me, query, *in_args,
-                    #tz_default =None,
-                    #valid_time_all = bool ? False,
+    def query( me, query, *in_args,
+                    tz_default =None,
+                    valid_time_all =False,
                     #basis = at_tx #as returned in submit_tx
                     #basis-timeout_s    ??
                     #as_json =False,
                     **ka):
-        query = {
-            #Keyword( 'xtdb.server/query'): query # me.name_query: query
-            #'xtdb.server/query': query
-            me.name_query: query
-            #, args= [ 23 ]
-            }
+        query = dict( query= query,)
         '''     {
-                "query": null,
-                "basis": null,
-                "basis-timeout": null,
-                "args": [ {} ],
+                "query": xtdb/list( (from ..) ),
+                "basis": null or { :at-tx: .. },
+                "basis-timeout": null, ??
+                "args": [ {} ], ??
                 "default-all-valid-time?": true,
-                "default-tz": null
+                "default-tz": null ??
                 }
             https://docs.xtdb.com/reference/main/xtql/queries.html
             '''
-        #if in_args: query[ 'args'] = in_args
-        #if tz_default: query[ 'default-tz'] = tz_default
-        #if valid_time_all: query[ 'default-all-valid-time?'] = valid_time_all
+        if in_args: query[ 'args'] = in_args
+        if tz_default: query[ 'default-tz'] = tz_default
+        if valid_time_all: query[ 'default-all-valid-time?'] = valid_time_all
         #..
 
         query = transit_dumps( query)
@@ -198,22 +179,22 @@ class xtdb2_read( BaseClient):
 
         return me._post( 'query',
                 data= query,
+                ka_response= dict( tj_multi= True),     #XXX if not as_json
                 #if as_json: headers= me._headers_json
                 )
-    query = query_post
 
-    def _content( me, r):
+    def _content( me, r, tj_multi =False, **ka):
         contentype = r.headers.get( 'content-type', '')
         if me._app_transit_json in contentype:
-            return transit_loads( r.text)
-        return super()._content( r)
+            return transit_loads( r.text, multi= tj_multi)  #decode? utf-8? XXX
+        return super()._content( r, **ka)
 
     def _post( me, *a,**ka):
         try:
             return super()._post( *a,**ka)
         except RuntimeError as e:
             r = e.response
-            cooked = me._content( r)
+            cooked = me._content( r)    #no multi here XXX
             if cooked:
                 text = str( cooked)
                 e.args = ( e.args[0] + '\n>>>> '+text.replace('\n','\n>>')+'\n', *e.args[1:] )
@@ -227,7 +208,8 @@ class xtdb2( xtdb2_read):
         '''
         #TODO inside-doc valid/end-time that may or may not be funcs
         #TODO SQL is unclear - texts or what
-
+        import datetime
+        valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5 ), None ]
         valid_time_from_to = valid_time_from_to and [ me.may_time( x) for x in valid_time_from_to ]
         tx_time = me.may_time( tx_time)
 
@@ -242,15 +224,10 @@ class xtdb2( xtdb2_read):
                 for d in docs ]
         for d in docs:
             assert d[0] in me._transaction_types, d[0]
-        if not as_json:
-            docs = [ [ Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
 
-        #tx-type tablename ..all-else..
-        #docs = [ [ Keyword( x) for x in d[:2] ] + d[2:] for d in docs ]    #keywordize
-        docs = [ XTQL( op, Keyword( tbl), *rest )
-        #docs = [ XTQLput( Keyword( tbl), *rest )
-                    for op,tbl,*rest in docs ]    #xtql-dec23
-            #XTQLput( Keyword('aa'), { 'c': 123 } )
+        docs = [ XTQLop( op, { 'table-name': tbl, 'doc': doc, **tt })
+                    for op,tbl,doc,tt in docs ]    #xtql-jan24
+
         ops = { 'tx-ops': docs }     #XXX assume auto key->keyword
         if tx_time or tz_default:   #general for whole tx
             ops[ 'opts' ] = {
@@ -273,25 +250,32 @@ class xtdb2( xtdb2_read):
         '''.split()    #call = v1.fn ; erase = v1.evict
         ##update-table delete-from erase-from
 
-    _time_valid_from  = 'starting-from'
-    _time_valid_to    = 'until'
-    _time_valid_from_to= 'during'
+    _time_valid_from  = 'valid-from'
+    _time_valid_to    = 'valid-to'
     @staticmethod
     def _kw_as_json( name, as_json):
         if as_json: return name
         return Keyword( 'xt/'+name)
     @classmethod
     def _use_valid_time( me, tx, valid_time_from_to =None, as_json =False):
-        if not valid_time_from_to: return tx
-        r = [ sym_pipeline, tx ]
-        time_valid_from, time_valid_to = valid_time_from_to
-        if time_valid_from and time_valid_to:
-            return r + [[ me._kw_as_json( me._time_valid_from_to, as_json), time_valid_from, time_valid_to ]]
-        if time_valid_from:
-            return r + [[ me._kw_as_json( me._time_valid_from, as_json), time_valid_from ]]
-        if time_valid_to:
-            return r + [[ me._kw_as_json( me._time_valid_to, as_json), time_valid_to ]]
-        return tx
+        tt = {}
+        if valid_time_from_to:
+            time_valid_from, time_valid_to = valid_time_from_to
+            if time_valid_from:
+                tt[ me._time_valid_from ] = time_valid_from
+            if time_valid_to:
+                tt[ me._time_valid_to ] = time_valid_to
+        return [ *tx, tt ]
+
+        #r = [ sym_pipeline, tx ]
+        #time_valid_from, time_valid_to = valid_time_from_to
+        #if time_valid_from and time_valid_to:
+        #    return r + [[ me._kw_as_json( me._time_valid_from_to, as_json), time_valid_from, time_valid_to ]]
+        #if time_valid_from:
+        #    return r + [[ me._kw_as_json( me._time_valid_from, as_json), time_valid_from ]]
+        #if time_valid_to:
+        #    return r + [[ me._kw_as_json( me._time_valid_to, as_json), time_valid_to ]]
+        #return tx
 
     @staticmethod
     def _table_as_json( table, as_json):
@@ -304,7 +288,7 @@ class xtdb2( xtdb2_read):
 
     @classmethod
     def make_tx_put( me, doc, *, table ='atablename', as_json =False, **ka):
-        if as_json:
+        if as_json or 1:    #always, dicts are auto-keyworded later
             assert doc.get( me.id_name), doc    #for json
         else:
             assert doc.get( me.id_kw), doc      #for edn/transit

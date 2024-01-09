@@ -199,7 +199,7 @@ class BaseClient:
         return purl
         #pp_rqurl = pformat( purl)
 
-    def _content( me, r):
+    def _content( me, r, **ka_ignore):
         contentype = r.headers.get( 'content-type', '')
         if me._app_json in contentype:
             return r.json()
@@ -207,9 +207,9 @@ class BaseClient:
             return edn_format.loads( r.content)     #or r.text?
 
     debug = False
-    def _response( me, r):
+    def _response( me, r, **ka):
         raw = r.content
-        cooked = me._content( r)
+        cooked = me._content( r, **ka)
         if me.debug:
             purl = me._pretty_req( r)
             print( pformat( purl))
@@ -224,11 +224,11 @@ class BaseClient:
         err.response = r
         raise err
 
-    def _get( me, url, *, headers ={}, **ka):
+    def _get( me, url, *, headers ={}, ka_response ={}, **ka):
         r = requests.get( me.url( url), **me._headers( headers), **ka)
-        return me._response( r)
-    def _post( me, url, *, data, headers ={}, **ka):
+        return me._response( r, **ka_response)
+    def _post( me, url, *, data, headers ={}, ka_response ={}, **ka):
         r = requests.post( me.url( url), data= data, **me._headers( headers), **ka)
-        return me._response( r)
+        return me._response( r, **ka_response)
 
 # vim:ts=4:sw=4:expandtab
