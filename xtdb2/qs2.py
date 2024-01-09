@@ -859,17 +859,13 @@ if __name__ == '__main__':
 
     p = fromtable( 'tbl', 'a', 'b')
     prn( p)
-if 0:
+
     p = fromtable( 'tbl', 'a', whole=True,
             time_valid = all_time, time_tx= at( datetime.date.today()))
     prn( p)
     q = dc_replace( p, binds= ['b','c'])
     prn(q)
-    u = unify( q, leftjoin( q, 'x') )
-    prn(u)
     prn( leftjoin( q, 'x') )
-
-    func1( 'sinh', 4.5 )
 
     u2= unify(
         fromtable( 'docs', 'my-nested-rel' ),
@@ -881,26 +877,22 @@ if 0:
 
     c = f_switch( p_gt( 'a', 2), case( 3, 45), case( 7, 0) , default= -34)
     prn(c)
-    prn( case(3,4))
-    d = f_cond( case( 3, 45), case( funcs.add(7,8), 0) , default= -34)
-    prn(d)
     o = orderby( 'a', OrderSpec( 'c', desc=1), b=True, d= dict( desc=True, nulls_last=True) )
     prn( o)
-    f = fn.aggr_row_count()
-    prn( f)
+    prn( fn.aggr_row_count())
     prn( funcs.add(3,4))
     prn( funcs.let('a','b','c'))
     prn( funcs.aggr_max('a'))
     prn( funcs.max('a','b','c'))
-    prn( funcs.greatest('a','b','c'))
+    assert funcs.greatest('a','b','c') == funcs.max('a','b','c')
 
 
 #TODO:
 # - see Expr TODOs
-# - doctests
 # - specs as kargs fromtable( 'tbl', 'a', b=23)
 # - .specs as dict(name:expr) and not list of Name_Expr ? helps for uniq-check
 # - argsspecs and specs together? fromtable( 'tbl', 'a', binds= dict( b=23))
+# + doctests
 # + max/min all/any are both predicates and funcs
 # + common register of all funcs
 
