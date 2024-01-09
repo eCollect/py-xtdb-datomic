@@ -56,7 +56,7 @@ class Source: 'op/source'
 class Transform: 'op/tail'
 
 Name = str      #column-name or var-name
-class Column( str): pass
+Column = str    #?? needed to differ or not? XXX
 class Var( str):
     '-> symbol'
     def s( me, **kaignore): return sym( me)
@@ -74,10 +74,24 @@ class TemporalFilter:
     | (to Timestamp)
     | (in Timestamp Timestamp)
     | :all-time
+
+    >>> test( at( datetime.date(2024, 1, 9) ))
+    at(timestamp=datetime.date(2024, 1, 9))
+     ('%at', datetime.date(2024, 1, 9))
+    >>> test( since( datetime.datetime(2024, 1, 9, 15, 23) ))
+    since(timestamp=datetime.datetime(2024, 1, 9, 15, 23))
+     ('%from', datetime.datetime(2024, 1, 9, 15, 23))
+    >>> test( since( 123))
+    Traceback (most recent call last):
+    ...
+    AssertionError: 123
     '''
+
 @dataclass
 class _TemporalFilter1( TemporalFilter):
     timestamp: Timestamp
+    def __init__( me, timestamp):
+        _init_item( me, 'timestamp', Timestamp, timestamp)
     def s( me, **kaignore):
         return s_sym( me.xtql, me.timestamp)
 class at(    _TemporalFilter1): xtql = 'at'
@@ -100,21 +114,40 @@ all_time = all_time()   #singleton
 class _query:
     query: Forward( 'Query')
     args: List[ Forward( 'ArgSpec') ] =()
-    def __init__( me, *args):
-        _init_items( me, 'args', ArgSpec, args)
+    def __init__( me, query, *argsargs, args= ()):
+        #TODO args as dict ?
+        if isinstance( args, dict):
+            args = tuple( ArgSpec( k,v) for k,v in args.items())
+        _init_item( me, 'query', Query, query)
+        assert not (args and argsargs)
+        _init_convert_items( me, 'args', ArgSpec, args or argsargs)
     def s( me, **kaignore):
-        return s_sym( me.xtql, me.query, me.args)
-class subquery( _query): xtql = 'q'
+        return s_sym( me.xtql, me.query, dict( args= s( me.args)))
+class subquery( _query):
+    '''
+    >>> test( subquery( fromtable( 'tbl', 'a'), args= [ 'b', Name_Expr( 'c', 2) ] ))
+    subquery(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)])
+     ('%q', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
+    >>> test( subquery( fromtable( 'tbl', 'a'), args= dict( b=None, c=2) ))
+    subquery(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)])
+     ('%q', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
+    '''
+    xtql = 'q'
 class exists( _query):   xtql = 'exists'
 @dataclass
 class pull( _query):
+    '''
+    >>> test( pull( fromtable( 'tbl', 'a'), args= dict( b=None, c=2), many=True ))
+    pull(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)], many=True)
+     ('%pull*', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
+    '''
     many: bool =False
     @property
     def xtql( me):
         return 'pull*' if me.many else 'pull'
-    def __init__( me, *args, many =False):
+    def __init__( me, *args, many =False, **ka):
         _init_item( me, 'many', bool, many, convert= True)
-        super().__init__( *args)
+        super().__init__( *args, **ka)
 
 
 Expr = Union[ #None,    no None plz
@@ -123,7 +156,7 @@ Expr = Union[ #None,    no None plz
             #TODO Temporal, TemporalAmount,   #ObjectExpr ?? datetime / duration ??
             #TODO List[ Forward( 'Expr') ],             #VectorExpr
             #set[ Expr ] ?              #SetExpr
-            #TODO Dict[ str, Forward( 'Expr') ],        #MapExpr -> {:str expr, ..}
+            #TODO Dict[ str, Forward( 'Expr') ],        #MapExpr -> {:str expr, ..}     XXX list-of-dicts is used in relation
             Param,                      #-> $symbol
             Var,                        #-> symbol
             Func,
@@ -135,11 +168,15 @@ Expr_or_None = Union[ Expr, None ]
 
 @dataclass
 class attrget( Func):
-    'fn/. i.e. getattr'
+    '''fn/. i.e. getattr
+    >>> test( attrget( 'a', 'b'))
+    attrget(expr='a', attr='b')
+     ('%.', 'a', '%b')
+    '''
     expr: Expr
     attr: Name
     def s( me, **kaignore):
-        return s_sym( '.', expr, sym( me.attr))
+        return s_sym( '.', me.expr, sym( me.attr))
 
 @dataclass
 class _items( Func):
@@ -162,7 +199,17 @@ Predicate = Union[ _items, _item ]
 
 @dataclass
 class Name_Expr:
-    'name is keyword=column-or-param if expr, else a symbol=somevar'
+    '''name is keyword=column-or-param if expr, else a symbol=somevar
+    >>> test( Name_Expr( 'a', 'b'))
+    Name_Expr(name='a', expr='b')
+     {':a': 'b'}
+    >>> test( Name_Expr( 'a'))
+    Name_Expr(name='a', expr=None)
+     %a
+    >>> test( Name_Expr( 'a', 'b'), name_as_sym=True)
+    Name_Expr(name='a', expr='b')
+     {'%a': 'b'}
+    '''
     name: Name
     expr: Expr =None
     def s( me, name_as_sym =False):
@@ -172,17 +219,30 @@ class Name_Expr:
 
 BindSpec = Name_Expr
 
+
 @dataclass
 class fromtable( Source):
+    '''
+    >>> test( fromtable( 'tbl', 'a', 'b'))
+    fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)], time_valid=None, time_tx=None)
+     ('%from', ':tbl', ['%a', '%b'])
+    >>> test( fromtable( 'tbl', 'a', whole=True, time_valid= all_time, time_tx= at( datetime.date( 2024, 1, 5))))
+    fromtable(table='tbl', binds=['%*', Name_Expr(name='a', expr=None)], time_valid=all_time(), time_tx=at(timestamp=datetime.date(2024, 1, 5)))
+     ('%from', ':tbl', {'bind': ['%*', '%a'], 'for-valid-time': ':all-time', 'for-system-time': ('%at', datetime.date(2024, 1, 5))})
+    >>> test( dc_replace( fromtable( 'tbl', 'a', whole=True),  binds= ['b','c']))
+    fromtable(table='tbl', binds=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=None)], time_valid=None, time_tx=None)
+     ('%from', ':tbl', ['%b', '%c'])
+
+    '''
     table:  str  #identifier?
     binds:  List[ BindSpec ]
     whole:  InitVar =False
-    for_valid_time: TemporalFilter =None
-    for_tx_time:    TemporalFilter =None
-    def __init__( me, table, *argsbinds, binds= (), whole =False, for_valid_time =None, for_tx_time =None):
+    time_valid: TemporalFilter =None
+    time_tx:    TemporalFilter =None
+    def __init__( me, table, *argsbinds, binds= (), whole =False, time_valid =None, time_tx =None):
         _init_item( me, 'table', str, table)
-        _init_item( me, 'for_valid_time', TemporalFilter, for_valid_time, allow_empty= True)
-        _init_item( me, 'for_tx_time',    TemporalFilter, for_tx_time,    allow_empty= True)
+        _init_item( me, 'time_valid', TemporalFilter, time_valid, allow_empty= True)
+        _init_item( me, 'time_tx',    TemporalFilter, time_tx,    allow_empty= True)
         assert not (binds and argsbinds)
         binds = list( binds or argsbinds)
         if not binds: whole = True
@@ -192,20 +252,28 @@ class fromtable( Source):
     def has_whole( me):
         return sym_wild in me.binds
     def s( me, **kaignore):
-        if me.for_valid_time is None and me.for_tx_time is None:
+        if me.time_valid is None and me.time_tx is None:
             args = me.binds
         else:
             args = dict(
                 bind = s( me.binds),
-                **({} if me.for_valid_time is None else {'for-valid-time' : s( me.for_valid_time) }),
-                **({} if me.for_tx_time    is None else {'for-system-time': s( me.for_tx_time) }),
+                **({} if me.time_valid is None else {'for-valid-time' : s( me.time_valid) }),
+                **({} if me.time_tx    is None else {'for-system-time': s( me.time_tx) }),
                 )
         return s_sym( 'from', kw( me.table), args )
 
 
 @dataclass #( frozen= True)
 class relation( Source):
-    'can come from constant, query-argument, value-in-another-doc (as Transform?)'
+    '''op/rel - can come from constant, query-argument, value-in-another-doc (as Transform?)
+    >>> test( relation( 'myrel', 'a', 'b'))
+    relation(expr='myrel', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)])
+     ('%rel', 'myrel', ['%a', '%b'])
+
+    #>>> test( relation( [ dict(a=1, b=2), dict( a=3,b=4)] ))
+    #relation(expr=[{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], binds=[])
+    # ('%rel', [{:a 1, :b 2}, {:a 3, :b 4}])
+    '''
     expr: Expr
     binds: List[ BindSpec ]
     def __init__( me, expr, *argsbinds, binds= ()):
@@ -220,6 +288,11 @@ ArgSpec = Name_Expr
 
 @dataclass
 class join:
+    '''op/join
+    >>> test( join( fromtable( 'tbl', whole=True), 'x'))
+    join(query=fromtable(table='tbl', binds=['%*'], time_valid=None, time_tx=None), binds=[Name_Expr(name='x', expr=None)], args=[])
+     ('%join', ('%from', ':tbl', ['%*']), ['%x'])
+    '''
     xtql = 'join'
     query:  Forward( 'Query')
     binds:  List[ BindSpec ]
@@ -241,7 +314,11 @@ class leftjoin( join):
 
 @dataclass
 class where( Transform):
-    'op/where'
+    '''op/where
+    >>> test( where( p_gt( 'a', 'b'), p_min( 'a', 'b') ))
+    where(predicates=(p_gt(items=('a', 'b')), p_min(items=('a', 'b'))))
+     ('%where', ('%>', 'a', 'b'), ('%least', 'a', 'b'))
+    '''
     predicates: List[ Predicate ]
     def __init__( me, *argspreds, predicates =()):
         _init_items( me, 'predicates', Predicate, predicates or argspreds)
@@ -269,7 +346,11 @@ class OrderSpec:
 
 @dataclass
 class orderby( Transform):
-    'op/order-by'
+    '''op/order-by
+    >>> test( orderby( 'a', OrderSpec( 'c', desc=3), b=True, d= dict( desc=True, nulls_last=True) ))
+    orderby(orders=[OrderSpec(expr='a', desc=None, nulls_last=None), OrderSpec(expr='c', desc=3, nulls_last=None), OrderSpec(expr='b', desc=True, nulls_last=None), OrderSpec(expr='d', desc=True, nulls_last=True)])
+     ('%order-by', 'a', {'val': 'c', 'dir': ':desc'}, {'val': 'b', 'dir': ':desc'}, {'val': 'd', 'dir': ':desc', 'nulls': ':last'})
+    '''
     orders: List[ OrderSpec ]
     def __init__( me, *argsorders, orders =(), **kargsorders):
         kaorders = tuple( OrderSpec( k, **(v if isinstance( v, dict) else dict( desc= v )))
@@ -280,21 +361,38 @@ class orderby( Transform):
 
 @dataclass
 class limit( Transform):
-    'op/limit'
-    value: int #non-negative
+    '''op/limit
+    >>> test( limit( 34))
+    limit(value=34)
+     ('%limit', 34)
+    '''
+    xtql = 'limit'
+    value: int #TODO non-negative
     def s( me, **kaignore):
-        return (sym( 'limit'), me.value)
-@dataclass
-class offset( Transform):
-    'op/offset'
-    value: int #non-negative
-    def s( me, **kaignore):
-        return (sym( 'offset'), me.value)
+        return (sym( me.xtql), me.value)
+class offset( limit):
+    xtql = 'offset'
+    __docs__ = '''
+    >>> test( offset( 4))
+    offset(value=4)
+     ('%offset', 4)
+    '''
 
 
 @dataclass
 class unnest( Transform):
-    'op/unnest - differs in pipeline:name=col vs unify/name=var/logicvar'
+    '''op/unnest - differs in pipeline:name=col vs unify/name=var/logicvar
+    >>> test( unnest( 'a', 'b'))
+    unnest(name='a', expr='b')
+     ('%unnest', {':a': 'b'})
+    >>> test( unnest( 'a', 'b'), name_as_sym=True)
+    unnest(name='a', expr='b')
+     ('%unnest', {'%a': 'b'})
+    >>> test( unnest( 'a'))
+    Traceback (most recent call last):
+    ...
+    TypeError: unnest.__init__() missing 1 required positional argument: 'expr'
+    '''
     name: Name
     expr: Expr
     def s( me, name_as_sym =False):
@@ -304,12 +402,20 @@ class unnest( Transform):
 
 @dataclass
 class without_columns( Transform):
-    'op/without'
+    '''op/without
+    >>> test( without_columns( 'a', 'b'))
+    without_columns(columns=('a', 'b'))
+     ('%without', ':a', ':b')
+    >>> test( without_columns())
+    Traceback (most recent call last):
+    ...
+    AssertionError
+    '''
     columns: List[ Column ]
     def __init__( me, *columns):
         _init_items( me, 'columns', Column, columns)
     def s( me, **kaignore):
-        return s_sym( 'without', *me.columns)
+        return s_sym( 'without', *( kw(c) for c in me.columns))
 
 def _init_convert_items2( me, name, type, items, kaitems):
     kaitems = tuple( type( k,v) for k,v in kaitems.items() )
@@ -318,7 +424,18 @@ def _init_convert_items2( me, name, type, items, kaitems):
 ReturnSpec = Name_Expr
 @dataclass
 class exact_columns( Transform):
-    'op/return - name=col if-expr-else =var'
+    '''op/return - name=col if-expr-else =var
+    >>> test( exact_columns( 'a', b= funcs.add( 'c', 1)))
+    exact_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+     ('%return', '%a', {':b': ('%+', 'c', 1)})
+    >>> test( exact_columns( 'a' ))
+    exact_columns(columns=[Name_Expr(name='a', expr=None)])
+     ('%return', '%a')
+    >>> test( exact_columns())
+    Traceback (most recent call last):
+    ...
+    AssertionError
+    '''
     columns: List[ ReturnSpec ]
     def __init__( me, *columns, **kacolumns):
         _init_convert_items2( me, 'columns', ReturnSpec, columns, kacolumns)
@@ -328,7 +445,21 @@ class exact_columns( Transform):
 WithSpec = Name_Expr
 @dataclass
 class with_columns( Transform):
-    'op/with - differs in pipeline/name=col-if-expr vs unify/name=var-if-expr ; if no expr, name=var/withvar'
+    '''op/with - differs in pipeline/name=col-if-expr vs unify/name=var-if-expr ; if no expr, name=var/withvar
+    >>> test( with_columns( 'a', 'b'))
+    with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)])
+     ('%with', '%a', '%b')
+    >>> test( with_columns( 'a', b= funcs.add( 'c', 1)))
+    with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+     ('%with', '%a', {':b': ('%+', 'c', 1)})
+    >>> test( with_columns( 'a', b= funcs.add( 'c', 1)), name_as_sym=True)
+    with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+     ('%with', '%a', {'%b': ('%+', 'c', 1)})
+    >>> test( with_columns())
+    Traceback (most recent call last):
+    ...
+    AssertionError
+    '''
     columns: List[ WithSpec ]
     def __init__( me, *columns, **kacolumns):
         _init_convert_items2( me, 'columns', WithSpec, columns, kacolumns)
@@ -337,8 +468,19 @@ class with_columns( Transform):
 
 AggrSpec = Name_Expr
 @dataclass
-class aggregate( Transform):
-    'op/aggregate - name=col if-expr-else =var'
+class aggregate( Transform):    #TODO same as exact_columns/return?
+    '''op/aggregate - name=col if-expr-else =var
+    >>> test( aggregate( 'a', b= funcs.add( 'c', 1)))
+    aggregate(items=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+     ('%aggregate', '%a', {':b': ('%+', 'c', 1)})
+    >>> test( aggregate( 'a' ))
+    aggregate(items=[Name_Expr(name='a', expr=None)])
+     ('%aggregate', '%a')
+    >>> test( aggregate())
+    Traceback (most recent call last):
+    ...
+    AssertionError
+    '''
     items: List[ AggrSpec ]
     def __init__( me, *items, **kaitems):
         _init_convert_items2( me, 'items', AggrSpec, items, kaitems)
@@ -350,7 +492,24 @@ aggr = aggregate
 UnifyClause = Union[ fromtable, relation, join, where, with_columns, unnest ]
 @dataclass
 class unify( Source):
-    'op/unify'
+    '''op/unify
+    >>> test( unify(
+    ...     fromtable( 'docs', 'my-nested-rel' ),
+    ...     relation( 'my-nested-rel', 'a', 'b'),
+    ...     where( p_gt( 'a', 'b'), p_min( 'a', 'b') ),
+    ...     with_columns( 'a', x= 'b'),
+    ...     ))
+    unify(sources=(fromtable(table='docs', binds=[Name_Expr(name='my-nested-rel', expr=None)], time_valid=None, time_tx=None), relation(expr='my-nested-rel', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)]), where(predicates=(p_gt(items=('a', 'b')), p_min(items=('a', 'b')))), with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='x', expr='b')])))
+     ('%unify', ('%from', ':docs', ['%my-nested-rel']), ('%rel', 'my-nested-rel', ['%a', '%b']), ('%where', ('%>', 'a', 'b'), ('%least', 'a', 'b')), ('%with', '%a', {'%x': 'b'}))
+    >>> test( unify(
+    ...     fromtable( 'docs', whole=True ),
+    ...     with_columns( 'a', x= 'b'),
+    ...     ))
+    Traceback (most recent call last):
+    ...
+        assert not i.has_whole(), i
+    AssertionError: fromtable(table='docs', binds=['%*'], time_valid=None, time_tx=None)
+    '''
     sources: List[ UnifyClause ]
     def __init__( me, *sources):
         _init_items( me, 'sources', UnifyClause, sources)
@@ -363,9 +522,24 @@ class unify( Source):
 
 @dataclass
 class pipeline:
+    '''op/->
+    >>> test( pipeline(
+    ...     fromtable( 'docs', 'a', 'b' ),
+    ...     where( p_gt( 'a', 'b')),
+    ...     ))
+    pipeline(source=fromtable(table='docs', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)], time_valid=None, time_tx=None), transforms=(where(predicates=(p_gt(items=('a', 'b')),)),))
+     ('%->', ('%from', ':docs', ['%a', '%b']), ('%where', ('%>', 'a', 'b')))
+    >>> test( pipeline(
+    ...     relation( 'a', 'b'),        #wrong i know
+    ...     where( p_gt( 'a', 'b')),
+    ...     ))
+    pipeline(source=relation(expr='a', binds=[Name_Expr(name='b', expr=None)]), transforms=(where(predicates=(p_gt(items=('a', 'b')),)),))
+     ('%->', ('%rel', 'a', ['%b']), ('%where', ('%>', 'a', 'b')))
+    '''
     source: Source
     transforms: List[ Transform ] =()
     def __init__( me, source, *argstfs, transforms= ()):
+        _init_item( me, 'source', Source, source)
         assert not (transforms and argstfs)
         _init_items( me, 'transforms', Transform, transforms or argstfs, allow_empty =True)
     def s( me, **kaignore):
@@ -482,12 +656,6 @@ class func2( _func):
         _other   = dict( null_if_eq= 'null-if'),
         _time    = dict( period= None, datetime_truncate= 'date-trunc', datetime_extract= 'extract'),
         )
-if 0:  #into specials f_..
-  class func3( _func):
-    _argsize = 3,3
-    _allowed = dict(
-        _logic   = 'if let'.split(),    #XXX f_let/f_if ??
-        )
 class func23( _func):
     _argsize = 2,3
     _allowed = dict(
@@ -548,42 +716,65 @@ class func_aggr2( _func):
 
 @dataclass
 class f_let( Func):
-    'fn/let - eval .body(expr) for .name bound to .bind(expr)'
+    '''fn/let - eval .body(expr) for .name bound to .bind(expr)
+    >>> test( f_let( 'a', 'b', 'c'))
+    f_let(name='a', bind='b', body='c')
+     ('%let', ['%a', 'b'], 'c')
+    >>> test( funcs.let( 'a', 'b', 'c'))
+    f_let(name='a', bind='b', body='c')
+     ('%let', ['%a', 'b'], 'c')
+    '''
     name: Name  #-> bind-symbol
     bind: Expr  #-> bind-expr
     body: Expr  #-> body-expr
     def s( me, **kaignore):
-        return s_sym( 'let', [ me.name, me.bind ], me.body )
+        return s_sym( 'let', [ sym( me.name), me.bind ], me.body )
 
 @dataclass
 class f_if( Func):
-    'fn/if'
+    '''fn/if
+    >>> test( f_if( funcs.gt( 'a', 4), 45, 56))
+    f_if(cond=p_gt(items=('a', 4)), then=45, orelse=56)
+     ('%if', ('%>', 'a', 4), 45, 56)
+    >>> test( funcs.iff( funcs.gt( 'a', 4), 45, 56))
+    f_if(cond=p_gt(items=('a', 4)), then=45, orelse=56)
+     ('%if', ('%>', 'a', 4), 45, 56)
+    '''
+    _aliases = [ 'if_', 'iff' ]
     cond: Expr  #-> predicate ? must return boolean
     then: Expr
     orelse: Expr
     def s( me, **kaignore):
-        return s_sym( 'if', cond, me.then, me.orelse )
+        return s_sym( 'if', me.cond, me.then, me.orelse )
 
 @dataclass
 class f_ifsome( Func):
-    'fn/if-some - eval .then(expr) for name bound to .bind(expr) if it is non-null, else .orelse(expr)'
+    '''fn/if-some - eval .then(expr) for name bound to .bind(expr) if it is non-null, else .orelse(expr)
+    >>> test( f_ifsome( 'a', 'b', 'c', 'd'))
+    f_ifsome(name='a', bind='b', then='c', orelse='d')
+     ('%if-some', ['%a', 'b'], 'c', 'd')
+    '''
     name: Name  #-> bind-symbol
     bind: Expr  #-> bind-expr
     then: Expr  #-> then-expr
     orelse: Expr#-> else-expr
     def s( me, **kaignore):
-        return s_sym( 'if-some', [ me.name, me.bind ], me.then, me.orelse )
+        return s_sym( 'if-some', [ sym( me.name), me.bind ], me.then, me.orelse )
 
 
 @dataclass
 class case:
-    value: Expr     #=predicate inside cond
+    value: Expr     #=predicate if inside cond
     result: Expr
 
 import itertools
 @dataclass
 class f_cond( Func):
-    'fn/cond'
+    '''fn/cond
+    >>> test( f_cond( case( 3, 45), case( funcs.add(7,8), 9) , default= -34))
+    f_cond(cases=(case(value=3, result=45), case(value=func_any(name='add', args=(7, 8)), result=9)), default=-34)
+     ('%cond', 3, 45, ('%+', 7, 8), 9, -34)
+    '''
     cases: List[ case ]
     default: Expr =None
     def __init__( me, *cases, default :Expr =None):
@@ -600,7 +791,11 @@ class f_cond( Func):
 
 @dataclass
 class f_switch( Func):
-    'fn/case'
+    '''fn/case
+    >>> test( f_switch( p_gt( 'a', 2), case( 3, 45), case( funcs.add(7,8), 9) , default= -34))
+    f_switch(test=p_gt(items=('a', 2)), cases=(case(value=3, result=45), case(value=func_any(name='add', args=(7, 8)), result=9)), default=-34)
+     ('%case', ('%>', 'a', 2), 3, 45, ('%+', 7, 8), 9, -34)
+    '''
     test: Expr
     cases: List[ case ]
     default: Expr =None
@@ -610,6 +805,8 @@ class f_switch( Func):
     def s( me, **kaignore):
         return s_sym( 'case', me.test, *f_cond._scases( me))
 
+############# eo xtql things
+
 def _all_subclasses_of( klas):
     'ALL subclasses of klas but klas itself ; depth-first ; recursive'
     res = dict()    #set() does not keep order
@@ -618,11 +815,12 @@ def _all_subclasses_of( klas):
         res.update( dict.fromkeys( _all_subclasses_of( sub)))
     return res
 
+#common register of *all* funcs
 funcs_registry = _func.Registry()
 funcs = fn = funcs_registry
 for f in _all_subclasses_of( Func):
     if f in (Func, _func, _item, _items): continue
-    funcnames = [ f.__name__[2:] ]
+    funcnames = [ f.__name__[2:], *getattr( f, '_aliases', ()) ]
     #also alias them to originals if usable
     fxtql = getattr( f, 'xtql', None)
     if fxtql and fxtql not in funcnames and fxtql.isalpha() and fxtql.isascii(): #'-' not in v:
@@ -640,7 +838,7 @@ if __name__ == '__main__':
 
     if 10:
       for f in _forwards:
-        print(f)
+        #if 'dbg': print(f)
         f._evaluate( globals(), globals(), frozenset() )
     else:
         _eval_type( Expr, globals(), globals())
@@ -650,13 +848,20 @@ if __name__ == '__main__':
             return issubclass( cls, me.__forward_value__ if me.__forward_evaluated__ else _ForwardRef)
         _ForwardRef.__subclasscheck__ = fw__subclasscheck__
 
+    def test(e, name_as_sym =False):    #DO NOT TOUCH this
+        print( str( e ) + '\n ' + str( s( e, name_as_sym= name_as_sym )))
+    import doctest
+    doctest.testmod( verbose=0*True, report=True, exclude_empty=True, optionflags = doctest.REPORT_NDIFF )
+    #############
+
     def prn(e):
-        print( e, '\n', s(e))
+        print( f'{e}\n {s(e)}')
 
     p = fromtable( 'tbl', 'a', 'b')
     prn( p)
+if 0:
     p = fromtable( 'tbl', 'a', whole=True,
-            for_valid_time = all_time, for_tx_time= at( 'noww'))
+            time_valid = all_time, time_tx= at( datetime.date.today()))
     prn( p)
     q = dc_replace( p, binds= ['b','c'])
     prn(q)
@@ -692,9 +897,13 @@ if __name__ == '__main__':
 
 #TODO:
 # - see Expr TODOs
-# - max/min all/any are both predicates and funcs
 # - doctests
+# - specs as kargs fromtable( 'tbl', 'a', b=23)
+# - .specs as dict(name:expr) and not list of Name_Expr ? helps for uniq-check
+# - argsspecs and specs together? fromtable( 'tbl', 'a', binds= dict( b=23))
+# + max/min all/any are both predicates and funcs
 # + common register of all funcs
+
 
 ''' "grammar" - in somewhat lazy "syntax":
  * comments are  #... at eoline
@@ -721,13 +930,13 @@ Transform:
     | aggregate
 
 from_table+= _table_name _table_binds _table_options?
-                                    # (from table { :bind: ..binds , :for_valid_time .., :for_tx_time .. })
+                                    # (from table { :bind: ..binds , :time_valid .., :time_tx .. })
 _table_name: Name
 _table_binds: _table_bind+
 _table_bind: Name_Expr | wildcard
-_table_options: for_valid_time? for_tx_time?
-for_valid_time+= TemporalFilter
-for_tx_time+= TemporalFilter
+_table_options: time_valid? time_tx?
+time_valid+= TemporalFilter
+time_tx+= TemporalFilter
 wildcard: '*'
 TemporalFilter:
       at( Timestamp)                #  (at Timestamp)
