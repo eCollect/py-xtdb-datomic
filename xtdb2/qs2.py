@@ -5,7 +5,7 @@ https://docs.xtdb.com/reference/main/stdlib.html
 https://docs.xtdb.com/reference/main/stdlib/predicates.html
 '''
 from dataclasses import dataclass, InitVar, replace as dc_replace, KW_ONLY
-from typing import Dict, List, Optional, Any, Union, TypeVar, ForwardRef as _ForwardRef, _eval_type    #ClassVar
+from typing import Dict, List, Union, ForwardRef as _ForwardRef, _eval_type    #ClassVar TypeVar Optional, Any,
 import datetime
 
 dataclass = dataclass( frozen= True)
@@ -19,9 +19,9 @@ def Forward( x):
 
 #tx_time === system_time
 
-def sym(x): return '%'+x
-def kw(x):  return ':'+x
-sym_wild = sym('*')
+def sym( x): return '%'+x
+def kw( x):  return ':'+x
+sym_wild = sym( '*')
 
 def s( x, name_as_sym =False):
     if isinstance( x, (list,tuple)):
@@ -197,8 +197,8 @@ class fromtable( Source):
         else:
             args = dict(
                 bind = s( me.binds),
-                **({} if me.for_valid_time is None else {'for-valid-time' : s( me.for_valid_time))),
-                **({} if me.for_tx_time    is None else {'for-system-time': s( me.for_tx_time))),
+                **({} if me.for_valid_time is None else {'for-valid-time' : s( me.for_valid_time) }),
+                **({} if me.for_tx_time    is None else {'for-system-time': s( me.for_tx_time) }),
                 )
         return s_sym( 'from', kw( me.table), args )
 
@@ -399,15 +399,16 @@ class p_null(   _item): xtql= 'nil?'
 ###############
 
 @dataclass
-class func( Func):
+class _func( Func):
     'fn/<name> - func-call name over args'
     name: Name
     args: List[ Expr ]
     _argsize = 1,None   #min=1
+    _prefix = ''
     def __init__( me, name: Name, *args):
         _init_item( me, 'name', Name, name)
         amin,amax = me._argsize
-        assert amin <= len( args ) <= (amax or 99)
+        assert amin <= len( args ) <= (amax or 99), me._argsize
         assert name in me.get_allowed(), name
         _init_items( me, 'args', Expr, args, allow_empty= not amin)
 
@@ -420,12 +421,28 @@ class func( Func):
         if isinstance( klas._allowed, dict):
             for k,v in klas._allowed.items():
                 if isinstance( v, dict):    #category-dict
+                    overlaps = set( v) & set( allowed)
+                    assert not overlaps, overlaps
                     allowed.update( v)
                 elif isinstance( v, list):  #category-list
+                    overlaps = set( v) & set( allowed)
+                    assert not overlaps, overlaps
                     allowed.update( dict.fromkeys( v))
-                else: allowed[ k] = v       #direct-dict
+                else: #direct-dict
+                    assert k not in allowed, k
+                    allowed[ k] = v
         elif isinstance( klas._allowed, list):  #direct-list
+            overlaps = set( klas._allowed) & set( allowed)
+            assert not overlaps, overlaps
             allowed.update( dict.fromkeys( klas._allowed))
+
+        #also alias them to originals if usable
+        for k,v in list( allowed.items()):
+            if v and v != k and v.isalpha() and v.isascii(): #'-' not in v:
+                assert v not in allowed, v
+                allowed[ v] = v
+        if klas._prefix:
+            allowed = dict( (klas._prefix+k, v) for k,v in allowed.items())
         klas._allowed_flat = allowed
         return allowed
 
@@ -437,44 +454,47 @@ class func( Func):
     class Registry:
         def __init__( me):
             registry = {}
-            for fc in func.__subclasses__():
+            for fc in _func.__subclasses__():   #XXX direct only!
                 registry.update( dict.fromkeys( fc.get_allowed(), fc) )
-            me.all = registry
+            me._registry = registry
         def __getattr__( me, k):
-            return lambda *a,**ka: me.all[ k ]( k, *a,**ka)
+            func = me._registry.get( k )
+            if not func: raise AttributeError( k)
+            return lambda *a,**ka: func( k, *a,**ka)
 
-class func_any( func):
+class func_any( _func):
     _allowed = dict(
         _arithmetic = dict( add= '+', sub= '-', mul= '*', div= '/'),
         _other      = 'coalesce'.split(),
         )
-class func1( func):
-    _argsize = 1,1      #==1
+class func1( _func):
+    _argsize = 1,1
     _allowed = dict(
         _numeric = 'abs ceil floor double exp ln log10 sqrt'.split(),
         _trigo   = 'sin cos tan  asin acos atan  sinh cosh tanh'.split(),
         _text    = dict( len= 'character-length', bytelen= 'octet-length', lower= None, upper= None, ), #TODO more octet-things
         )
-class func2( func):
-    _argsize = 2,2      #==2
+class func2( _func):
+    _argsize = 2,2
     _allowed = dict(
         _numeric = 'log mod power'.split(),
         _text    = 'like position trim trim_start trim_end'.split(),
         _other   = dict( null_if_eq= 'null-if'),
         _time    = dict( period= None, datetime_truncate= 'date-trunc', datetime_extract= 'extract'),
         )
-class func3( func):
-    _argsize = 3,3      #==3
+if 0:  #into specials f_..
+  class func3( _func):
+    _argsize = 3,3
     _allowed = dict(
         _logic   = 'if let'.split(),    #XXX f_let/f_if ??
         )
-class func23( func):
+class func23( _func):
     _argsize = 2,3
     _allowed = dict(
         _text    = dict( regex= 'like-regex', substr= 'substring'),
         )
 
-class func_now( func):
+class func_now( _func):
     _argsize = 0,0
     def __init__( me, *a, precision: str =None):
         _init_item( me, 'precision', str, precision)
@@ -483,8 +503,8 @@ class func_now( func):
         return s_sym( me.make_name(), *( [ me.precision ] if me.precision else ()))
     _allowed = dict( utc_datetime= 'current-timestamp', utc_date= 'current-date', utc_time= 'current-time',
                       local_datetime='local-timestamp', local_time= 'local-time')
-class func_periods( func):
-    _argsize = 2,2      #==2
+class func_periods( _func):
+    _argsize = 2,2
     _allowed = 'equals overlaps '.split()
 class func_periods1( func_periods):
     def __init__( me, *a, strictly: bool =False):
@@ -502,26 +522,29 @@ class func_periods2( func_periods1):
         return ('immediately-' if me.immediately else '') + super().make_name()
     _allowed = 'lags leads precedes succeeds'.split()
 
-class func_aggr0( func):
-    _argsize = 0,0      #==0
+class func_aggr0( _func):
+    _argsize = 0,0
     _allowed = dict( row_count= 'row-count')
-class func_aggr1( func):
-    _argsize = 1,1      #==1
+    _prefix = 'aggr_'
+class func_aggr1( _func):
+    _argsize = 1,1
     _allowed = dict(
        _nums = dict( stddev_population= 'stddev-pop', stddev_sample= 'stddev-samp', variance_population= 'var-pop', variance_sample= 'var-samp'),
        _bools= 'all every any some'.split(),
        _comp = dict( array_aggr= 'array-agg'),
        )
-class func_aggr2( func):
-    _argsize = 1,1      #==1
+    _prefix = 'aggr_'
+class func_aggr2( _func):
+    _argsize = 1,1
     def __init__( me, *a, distinct: bool =False):
         _init_item( me, 'distinct', bool, distinct, convert= True)
         super().__init__( *a)
     def make_name( me):
         return super().make_name() + ('-distinct' if me.distinct else '')
     _allowed = dict(
-        _nums = 'avg count max min sum'.split()     #XXX overlap max/min
+        _nums = dict( average= 'avg', **dict.fromkeys( 'count max min sum'.split()))    #XXX overlap max/min
         )
+    _prefix = 'aggr_'
 
 @dataclass
 class f_let( Func):
@@ -567,13 +590,13 @@ class f_cond( Func):
         assert default or cases
         _init_item( me, 'default', Expr, default, allow_empty= True)
         _init_items( me, 'cases', case, cases)
-
     def s( me, **kaignore):
         return s_sym( 'cond', *me._scases())
     def _scases( me):
         return (
                 *itertools.chain( *((c.value, c.result) for c in me.cases)),
-                *( [ me.default ] if me.default is not None else ()))
+                *( [ me.default ] if me.default is not None else ())
+                )
 
 @dataclass
 class f_switch( Func):
@@ -587,11 +610,27 @@ class f_switch( Func):
     def s( me, **kaignore):
         return s_sym( 'case', me.test, *f_cond._scases( me))
 
-funcs_registry = func.Registry()
+def _all_subclasses_of( klas):
+    'ALL subclasses of klas but klas itself ; depth-first ; recursive'
+    res = dict()    #set() does not keep order
+    for sub in klas.__subclasses__():
+        res[ sub ] = None
+        res.update( dict.fromkeys( _all_subclasses_of( sub)))
+    return res
+
+funcs_registry = _func.Registry()
 funcs = fn = funcs_registry
-for f in Func.__subclasses__():
-    if f is Func or f is func: continue
-    setattr( funcs_registry, f.__name__[2:], f)
+for f in _all_subclasses_of( Func):
+    if f in (Func, _func, _item, _items): continue
+    funcnames = [ f.__name__[2:] ]
+    #also alias them to originals if usable
+    fxtql = getattr( f, 'xtql', None)
+    if fxtql and fxtql not in funcnames and fxtql.isalpha() and fxtql.isascii(): #'-' not in v:
+        funcnames.append( f.xtql)
+    for fname in funcnames:
+        overlaps = getattr( funcs_registry, fname, None)
+        assert not overlaps, (f, overlaps)
+        setattr( funcs_registry, fname, f)
 
 
 if __name__ == '__main__':
@@ -606,7 +645,7 @@ if __name__ == '__main__':
     else:
         _eval_type( Expr, globals(), globals())
     if 0:
-        def fw__subclasscheck__(me, cls):
+        def fw__subclasscheck__( me, cls):
             if 'dbg': print( 'fw', cls)
             return issubclass( cls, me.__forward_value__ if me.__forward_evaluated__ else _ForwardRef)
         _ForwardRef.__subclasscheck__ = fw__subclasscheck__
@@ -640,22 +679,22 @@ if __name__ == '__main__':
     prn( case(3,4))
     d = f_cond( case( 3, 45), case( funcs.add(7,8), 0) , default= -34)
     prn(d)
-    o = orderby( 'a', OrderSpec( 'c', desc=1), b=True, d= dict(desc=True, nulls_last=True) )
+    o = orderby( 'a', OrderSpec( 'c', desc=1), b=True, d= dict( desc=True, nulls_last=True) )
     prn( o)
-    f = fn.row_count()
+    f = fn.aggr_row_count()
     prn( f)
     prn( funcs.add(3,4))
     prn( funcs.let('a','b','c'))
-#    prn( funcs.max('a','b','c'))
+    prn( funcs.aggr_max('a'))
+    prn( funcs.max('a','b','c'))
+    prn( funcs.greatest('a','b','c'))
 
 
 #TODO:
 # - see Expr TODOs
-# + common register of all funcs
+# - max/min all/any are both predicates and funcs
 # - doctests
-    import dataclasses
-    import pprint
-    pprint.pprint( dataclasses.fields( f_switch))
+# + common register of all funcs
 
 ''' "grammar" - in somewhat lazy "syntax":
  * comments are  #... at eoline
