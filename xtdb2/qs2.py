@@ -1,11 +1,14 @@
 
-'''
+''' xtql grammar/builder, with most type/semantic checks
 https://docs.xtdb.com/reference/main/xtql/queries.html
 https://docs.xtdb.com/reference/main/stdlib.html
 https://docs.xtdb.com/reference/main/stdlib/predicates.html
 '''
 from dataclasses import dataclass, InitVar, replace as dc_replace, KW_ONLY
 from typing import Dict, List, Optional, Any, Union, TypeVar, ForwardRef as _ForwardRef, _eval_type    #ClassVar
+import datetime
+
+dataclass = dataclass( frozen= True)
 
 _forwards = []
 def Forward( x):
@@ -14,13 +17,7 @@ def Forward( x):
     _forwards.append( f)
     return f
 
-import datetime
-Timestamp = Union[ datetime.date, datetime.datetime ] #.datetime either naive or timezoned
-
 #tx_time === system_time
-
-#class xtql:
-    #class thing( dict):
 
 def sym(x): return '%'+x
 def kw(x):  return ':'+x
@@ -29,22 +26,31 @@ sym_wild = sym('*')
 def s( x, name_as_sym =False):
     if isinstance( x, (list,tuple)):
         return [ s( i, name_as_sym= name_as_sym) for i in x ]
+    #if isinstance( x, dict): only 2 occassions
+    #    return dict( (k,s(v)) for k,v in x.items())
     m = getattr( x, 's', None)
     if m: return m( name_as_sym= name_as_sym)
     return x
 def s_sym( name, *args):
     return (sym( name), *s( args))
-def _init_items( me, name, type, items, allow_empty =False):
-    if not allow_empty: assert items
-    for i in items:
-        assert isinstance( i, type), i
-    setattr( me, name, items)
-def _init_item( me, name, type, item, allow_empty =False):
+def _init_items( me, name, type, items, allow_empty =False, allow_these =()):
     if not allow_empty:
-        assert item is not None
-    if item is not None:
+        assert items
+    for i in items:
+        assert isinstance( i, type) or i in allow_these, i
+    object.__setattr__( me, name, items)    #dataclass.frozen
+def _init_item( me, name, type, item, allow_empty =False, convert =False):
+    if item is None:
+        assert allow_empty
+    else:
+        if convert: item = type( item)
         assert isinstance( item, type), item
-    setattr( me, name, item)
+    object.__setattr__( me, name, item)     #dataclass.frozen
+def _init_convert_items( me, name, type, items, *keep_these, allow_empty =False):
+    _init_items( me, name, type,
+            [ b if isinstance( b, type) or b in keep_these else type( b) for b in items ],
+            allow_these= keep_these, allow_empty= allow_empty )
+
 
 class Source: 'op/source'
 class Transform: 'op/tail'
@@ -60,9 +66,10 @@ class Param( str):
 
 class Func: pass
 
+Timestamp = Union[ datetime.date, datetime.datetime ] #.datetime either naive or timezoned
 class TemporalFilter:
     '''
-    (at Timestamp)
+      (at Timestamp)
     | (from Timestamp)
     | (to Timestamp)
     | (in Timestamp Timestamp)
@@ -95,14 +102,18 @@ class _query:
     args: List[ Forward( 'ArgSpec') ] =()
     def __init__( me, *args):
         _init_items( me, 'args', ArgSpec, args)
-class subquery( _query): 'fn/q'
-class exists( _query): 'fn/exists'
+    def s( me, **kaignore):
+        return s_sym( me.xtql, me.query, me.args)
+class subquery( _query): xtql = 'q'
+class exists( _query):   xtql = 'exists'
 @dataclass
 class pull( _query):
-    'fn/pull* if many else fn/pull'
     many: bool =False
+    @property
+    def xtql( me):
+        return 'pull' +'*'*me.many
     def __init__( me, *args, many =False):
-        me.many = many
+        _init_item( me, 'many', bool, many, convert= True)
         super().__init__( *args)
 
 
@@ -115,8 +126,6 @@ Expr = Union[ #None,    no None plz
             #TODO Dict[ str, Forward( 'Expr') ],        #MapExpr -> {:str expr, ..}
             Param,                      #-> $symbol
             Var,                        #-> symbol
-            #Forward( 'attrget'),
-            #Forward( 'Predicate'),
             Func,
             subquery,
             exists,
@@ -160,13 +169,10 @@ class Name_Expr:
         if me.expr is None: return sym( me.name)
         name = (sym if name_as_sym else kw)( me.name)
         return { name: s( me.expr) }
-    @classmethod
-    def convert( me, items, ignore =None):
-        return [ b if isinstance( b, me) or b == ignore else me( b) for b in items ]
 
 BindSpec = Name_Expr
 
-@dataclass #( frozen= True)
+@dataclass
 class fromtable( Source):
     table:  str  #identifier?
     binds:  List[ BindSpec ]
@@ -174,7 +180,7 @@ class fromtable( Source):
     for_valid_time: TemporalFilter =None
     for_tx_time:    TemporalFilter =None
     def __init__( me, table, *argsbinds, binds= (), whole =False, for_valid_time =None, for_tx_time =None):
-        me.table = table
+        _init_item( me, 'table', str, table)
         _init_item( me, 'for_valid_time', TemporalFilter, for_valid_time, allow_empty= True)
         _init_item( me, 'for_tx_time',    TemporalFilter, for_tx_time,    allow_empty= True)
         assert not (binds and argsbinds)
@@ -182,7 +188,7 @@ class fromtable( Source):
         if not binds: whole = True
         if whole and sym_wild not in binds:
             binds.insert( 0, sym_wild)
-        me.binds = BindSpec.convert( binds, ignore= sym_wild )
+        _init_convert_items( me, 'binds', BindSpec, binds, sym_wild )
     def has_whole( me):
         return sym_wild in me.binds
     def s( me, **kaignore):
@@ -191,8 +197,8 @@ class fromtable( Source):
         else:
             args = dict(
                 bind = s( me.binds),
-                **({} if me.for_valid_time is None else dict( for_valid_time= s( me.for_valid_time))),
-                **({} if me.for_tx_time    is None else dict( for_tx_time   = s( me.for_tx_time))),
+                **({} if me.for_valid_time is None else {'for-valid-time' : s( me.for_valid_time))),
+                **({} if me.for_tx_time    is None else {'for-system-time': s( me.for_tx_time))),
                 )
         return s_sym( 'from', kw( me.table), args )
 
@@ -205,7 +211,7 @@ class relation( Source):
     def __init__( me, expr, *argsbinds, binds= ()):
         _init_item( me, 'expr', Expr, expr)
         assert not (binds and argsbinds)
-        me.binds = BindSpec.convert( binds or argsbinds)
+        _init_convert_items( me, 'binds', BindSpec, binds or argsbinds)
     def s( me, **kaignore):
         return s_sym( 'rel', me.expr, me.binds )
 rel = relation
@@ -221,8 +227,8 @@ class join:
     def __init__( me, query, *argsbinds, binds =(), args =()):
         _init_item( me, 'query', Query, query)
         assert not (binds and argsbinds)
-        me.binds = BindSpec.convert( binds or argsbinds)
-        me.args  = ArgSpec.convert( args)
+        _init_convert_items( me, 'binds', BindSpec, binds or argsbinds)
+        _init_convert_items( me, 'args', ArgSpec, args, allow_empty= True)
     def s( me, **kaignore):
         return s_sym( me.__class__.xtql,
                 me.query,
@@ -266,11 +272,9 @@ class orderby( Transform):
     'op/order-by'
     orders: List[ OrderSpec ]
     def __init__( me, *argsorders, orders =(), **kargsorders):
-        orders = [ s if isinstance( s, OrderSpec) else OrderSpec( s)
-                    for s in argsorders or orders ]
-        kaorders = [ OrderSpec( k, **(v if isinstance( v, dict) else dict( desc= v )))
-                    for k,v in kargsorders.items() ]
-        _init_items( me, 'orders', OrderSpec, orders + kaorders)
+        kaorders = tuple( OrderSpec( k, **(v if isinstance( v, dict) else dict( desc= v )))
+                            for k,v in kargsorders.items() )
+        _init_convert_items( me, 'orders', OrderSpec, (argsorders or orders) + kaorders)
     def s( me, **kaignore):
         return s_sym( 'order-by', *me.orders)
 
@@ -307,10 +311,9 @@ class without_columns( Transform):
     def s( me, **kaignore):
         return s_sym( 'without', *me.columns)
 
-def _init_items2( me, name, type, items, kaitems):
-    kaitems = [ type( k,v) for k,v in kaitems.items() ]
-    items = type.convert( items)
-    _init_items( me, name, type, items + kaitems)
+def _init_convert_items2( me, name, type, items, kaitems):
+    kaitems = tuple( type( k,v) for k,v in kaitems.items() )
+    _init_convert_items( me, name, type, items + kaitems)
 
 ReturnSpec = Name_Expr
 @dataclass
@@ -318,7 +321,7 @@ class exact_columns( Transform):
     'op/return - name=col if-expr-else =var'
     columns: List[ ReturnSpec ]
     def __init__( me, *columns, **kacolumns):
-        _init_items2( me, 'columns', ReturnSpec, columns, kacolumns)
+        _init_convert_items2( me, 'columns', ReturnSpec, columns, kacolumns)
     def s( me, **kaignore):
         return s_sym( 'return', *me.columns)
 
@@ -328,7 +331,7 @@ class with_columns( Transform):
     'op/with - differs in pipeline/name=col-if-expr vs unify/name=var-if-expr ; if no expr, name=var/withvar'
     columns: List[ WithSpec ]
     def __init__( me, *columns, **kacolumns):
-        _init_items2( me, 'columns', WithSpec, columns, kacolumns)
+        _init_convert_items2( me, 'columns', WithSpec, columns, kacolumns)
     def s( me, name_as_sym =False):
         return (sym( 'with'), *s( me.columns, name_as_sym= name_as_sym))
 
@@ -338,7 +341,7 @@ class aggregate( Transform):
     'op/aggregate - name=col if-expr-else =var'
     items: List[ AggrSpec ]
     def __init__( me, *items, **kaitems):
-        _init_items2( me, 'items', AggrSpec, items, kaitems)
+        _init_convert_items2( me, 'items', AggrSpec, items, kaitems)
     def s( me, **kaignore):
         return s_sym( 'aggregate', *me.items)
 aggr = aggregate
@@ -347,11 +350,12 @@ aggr = aggregate
 UnifyClause = Union[ fromtable, relation, join, where, with_columns, unnest ]
 @dataclass
 class unify( Source):
-    'note: cannot contain fromtable with whole/sym_wild'
+    'op/unify'
     sources: List[ UnifyClause ]
     def __init__( me, *sources):
         _init_items( me, 'sources', UnifyClause, sources)
         for i in sources:
+            #as of spec: cannot contain fromtable with whole/sym_wild'
             if isinstance( i, fromtable):
                 assert not i.has_whole(), i
     def s( me, **kaignore):
@@ -473,7 +477,7 @@ class func23( func):
 class func_now( func):
     _argsize = 0,0
     def __init__( me, *a, precision: str =None):
-        me.precision = precision
+        _init_item( me, 'precision', str, precision)
         super().__init__( *a)
     def s( me, **kaignore):
         return s_sym( me.make_name(), *( [ me.precision ] if me.precision else ()))
@@ -484,7 +488,7 @@ class func_periods( func):
     _allowed = 'equals overlaps '.split()
 class func_periods1( func_periods):
     def __init__( me, *a, strictly: bool =False):
-        me.strictly = strictly
+        _init_item( me, 'strictly', bool, strictly, convert= True)
         super().__init__( *a)
     def make_name( me):
         return ('strictly-' if me.strictly else '') + super().make_name()
@@ -492,7 +496,7 @@ class func_periods1( func_periods):
 class func_periods2( func_periods1):
     def __init__( me, *a, strictly: bool =False, immediately: bool =False ):
         assert not (strictly and immediately) #XXX: either immediately OR strictly, not both
-        me.immediately = immediately
+        _init_item( me, 'immediately', bool, immediately, convert= True)
         super().__init__( *a, strictly= strictly)
     def make_name( me):
         return ('immediately-' if me.immediately else '') + super().make_name()
@@ -511,7 +515,7 @@ class func_aggr1( func):
 class func_aggr2( func):
     _argsize = 1,1      #==1
     def __init__( me, *a, distinct: bool =False):
-        me.distinct = distinct
+        _init_item( me, 'distinct', bool, distinct, convert= True)
         super().__init__( *a)
     def make_name( me):
         return super().make_name() + ('-distinct' if me.distinct else '')
@@ -636,7 +640,7 @@ if __name__ == '__main__':
     prn( case(3,4))
     d = f_cond( case( 3, 45), case( funcs.add(7,8), 0) , default= -34)
     prn(d)
-    o = orderby( 'a', OrderSpec( 'c', desc=1), b=True, d=dict(desc=True, nulls_last=True) )
+    o = orderby( 'a', OrderSpec( 'c', desc=1), b=True, d= dict(desc=True, nulls_last=True) )
     prn( o)
     f = fn.row_count()
     prn( f)
@@ -647,8 +651,8 @@ if __name__ == '__main__':
 
 #TODO:
 # - see Expr TODOs
-# - common register of all funcs
-# - convert( bindspec ? )
+# + common register of all funcs
+# - doctests
     import dataclasses
     import pprint
     pprint.pprint( dataclasses.fields( f_switch))
