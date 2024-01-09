@@ -111,7 +111,7 @@ class pull( _query):
     many: bool =False
     @property
     def xtql( me):
-        return 'pull' +'*'*me.many
+        return 'pull*' if me.many else 'pull'
     def __init__( me, *args, many =False):
         _init_item( me, 'many', bool, many, convert= True)
         super().__init__( *args)
