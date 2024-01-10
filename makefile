@@ -36,7 +36,7 @@ all: test
 	$(MAKE) tests-xt
 	$(MAKE) tests-da
 
-EXCLUDES= 1 dist xtdb/others xtdb/srv*/* datomic/datomic-*/* datomic/mbrainz*
+EXCLUDES= 1 dist xtdb*/others xtdb/srv*/* datomic/datomic-*/* datomic/mbrainz*
 PYPACKS = $(VIRTUAL_ENV)/lib/python3*/site-packages
 tags ctags:
 	ctags $(EXCLUDES:%=--exclude="%") --links=no -R . $(PYPACKS)/edn_format $(PYPACKS)/transit
