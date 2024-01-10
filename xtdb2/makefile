@@ -1,6 +1,6 @@
 now: try
 
-PORT=3001
+PORT=3002
 REMOVE_AT_EXIT=--rm
 #ARGS=--entrypoint bash		#just walk inside
 #V2TAG=xtdb-ea
@@ -15,8 +15,8 @@ dload upd update:
 status:
 	curl http://localhost:$(PORT)/status
 
-## show :3000 as :3001 ; needs hacking SSL.* in /usr/lib/python3.10/site-packages/mitmproxy/net/tls.py
-PORTNEW=3001
+## show :3000 as :3002 ; needs hacking SSL.* in /usr/lib/python3.10/site-packages/mitmproxy/net/tls.py
+PORTNEW=3002
 mitm:
 	mitmproxy --mode reverse:http://localhost:$(PORT) -p $(PORTNEW)
 

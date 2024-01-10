@@ -1,13 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from dbclient import xtdb2, log
+from dbclient import xtdb2, log, Keyword, Symbol
 import datetime
-from pprint import pprint
+#from pprint import pprint
 import uuid
-from base.qsyntax import sym, kw, kw2, var
+
+kw = Keyword
+sym = Symbol
+# or, from base.qsyntax import edn_factory1, edn_factory2 ;
+#single :   kw.name or kw2('?name') ..
+# kw  = edn_factory1( Keyword)
+# sym = edn_factory1( Symbol)
+#prefix/name :   kw2.pfx.name or kw2('?pfx','nm') or kw2('?pfx').nm ..
+# kw2 = edn_factory2( Keyword)
+# sym2= edn_factory2( Symbol)
 
 import os
-PORT= os.getenv( 'PORT') or '3001'
+PORT= os.getenv( 'PORT') or '3002'
 URL = os.getenv( 'XTDB') or f'http://localhost:{PORT}'
 db = xtdb2( URL)
 

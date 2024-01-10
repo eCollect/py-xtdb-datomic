@@ -1,4 +1,5 @@
-from base.rpc_edn_json_http import BaseClient, dict_without_None, hacks, log
+from base.rpc_edn_json_http import BaseClient, dict_without_None, log
+from base.edn import hacks, EDNClientMixin
 import edn_format
 Keyword = edn_format.Keyword
 edn_dumps = edn_format.dumps
@@ -20,7 +21,7 @@ if RESULT_EDN:
 
 hacks.edn_accept_naive_datetimes()  #tx-as-json
 
-class xtdb_read( BaseClient):
+class xtdb_read( EDNClientMixin, BaseClient):
     ''' bitemporal append-only-db-in-clojure, graph
     https://docs.xtdb.com/clients/http/
     https://docs.xtdb.com/clients/http/openapi/1.22.1/      beware, this has more stuff than above
@@ -90,7 +91,7 @@ class xtdb_read( BaseClient):
 
     _headers_base = dict(
         BaseClient._headers_content_json,
-        accept= BaseClient._app_edn if RESULT_EDN else BaseClient._app_json,   #text/plain text/html
+        accept= EDNClientMixin._app_edn if RESULT_EDN else BaseClient._app_json,   #text/plain text/html
         )
 
     def url( me, url ):
@@ -147,7 +148,7 @@ class xtdb_read( BaseClient):
                 data= data,
                 **me._params( **params_vti),
                 headers= me.query_post_headers )
-    query_post_headers = BaseClient._headers_content_edn
+    query_post_headers = EDNClientMixin._headers_content_edn
     query = query_post
     if 0:
         def query_get( me, query, in_args ={}, **ka):

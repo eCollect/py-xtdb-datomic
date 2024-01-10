@@ -51,7 +51,7 @@ https://vvvvalvalval.github.io/posts/2016-01-03-architecture-datomic-branching-r
 '''
 
 import os
-URL = os.getenv( 'XTDB') or 'http://localhost:3001'
+URL = os.getenv( 'XTDB') or 'http://localhost:3002'
 
 class base:
     maxDiff = None

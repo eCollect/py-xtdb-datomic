@@ -31,9 +31,13 @@ tests-da test-da da:
 	cd datomic/ && PYTHONPATH=.. python try_mbrainz.py
 	#cd datomic/ && PYTHONPATH=.. python story.py
 	cd datomic/ && PYTHONPATH=.. python astory2da.py
+tests-xt2 test-xt2 xt2:
+	cd xtdb2/ && PYTHONPATH=.. python qs2.py
+	-cd xtdb2/ && PYTHONPATH=.. python try2.py
 all: test
 	#$(MAKE) tests2
 	$(MAKE) tests-xt
+	$(MAKE) tests-xt2
 	$(MAKE) tests-da
 
 EXCLUDES= 1 dist xtdb*/others xtdb/srv*/* datomic/datomic-*/* datomic/mbrainz*

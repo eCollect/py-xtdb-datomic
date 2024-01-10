@@ -1,4 +1,5 @@
-from base.rpc_edn_json_http import BaseClient, hacks, log
+from base.rpc_edn_json_http import BaseClient, log
+from base.edn import hacks, EDNClientMixin
 import edn_format
 from edn_format import dumps as edn_dumps
 import datetime, urllib
@@ -37,8 +38,8 @@ class Datomic_read( BaseClient):
         return edn_dumps( v)    #no need for urllib.parse.quote_plus here
 
     _headers_base = {
-        'accept': ', '.join([ BaseClient._app_edn, 'text/plain' ]),    #text/html makes errors too fancy
-        **BaseClient._headers_content_edn,
+        'accept': ', '.join([ EDNClientMixin._app_edn, 'text/plain' ]),    #text/html makes errors too fancy
+        **EDNClientMixin._headers_content_edn,
         }
 
     def __init__( me, rooturl, storage =None, dbname =None, headers ={}):

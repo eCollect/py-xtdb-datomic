@@ -14,7 +14,7 @@ if 1:
     NonCallableMock._format_mock_failure_message = _myformat_mock_failure_message
 
 import os
-URLROOT = os.getenv( 'XTDB') or 'http://localhost:3001'
+URLROOT = os.getenv( 'XTDB') or 'http://localhost:3002'
 URL = URLROOT.rstrip('/')
 
 
