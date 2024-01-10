@@ -1,6 +1,6 @@
 from .dbclient import xtdb
 from . import qsyntax as qs
-import base.rpc_edn_json_http
+import base.rpc_json_http
 import edn_format
 import unittest
 from unittest.mock import MagicMock, patch
@@ -26,8 +26,8 @@ class Gets( unittest.TestCase):
 
     def setUp(self):
         self.db = xtdb( URLROOT)
-        #self.fake = base.rpc_edn_json_http.requests.get = MagicMock(return_value='x')
-        self.fakeget = patch( 'base.rpc_edn_json_http.requests.get') # = MagicMock(return_value='x')
+        #self.fake = base.rpc_json_http.requests.get = MagicMock(return_value='x')
+        self.fakeget = patch( 'base.rpc_json_http.requests.get') # = MagicMock(return_value='x')
         self.fake = self.fakeget.start()
     def tearDown(self):
         #self.fakesend.stop()
@@ -81,7 +81,7 @@ class Gets( unittest.TestCase):
 
         self.fakeget.stop()
         #XXX actual session.send turns params into url, which makes 123 and '123' same ...=123 - an edn-int
-        with patch( 'base.rpc_edn_json_http.requests.Session.send') as fake:
+        with patch( 'base.rpc_json_http.requests.Session.send') as fake:
             url_ednint_123 = f'{URLentity}?eid-edn=123'
             count = 0
             def assert_url( url):
@@ -174,7 +174,7 @@ HEADERSedn = {'accept': 'application/edn', 'content-type': 'application/edn'}
 class Posts(unittest.TestCase):
     def setUp(self):
         self.db = xtdb( URLROOT)
-        self.fake = base.rpc_edn_json_http.requests.post = MagicMock(return_value='x')
+        self.fake = base.rpc_json_http.requests.post = MagicMock(return_value='x')
         self.datetext = '2023-01-11T11:37:07.649'
         self.datetime = datetime.datetime.fromisoformat( self.datetext)
 

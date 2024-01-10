@@ -1,6 +1,6 @@
 from .dbclient import xtdb2
 from . import qsyntax as qs
-import base.rpc_edn_json_http
+import base.rpc_json_http
 import edn_format
 import unittest
 from unittest.mock import MagicMock, patch
@@ -28,8 +28,8 @@ class Gets( unittest.TestCase):
 
     def setUp(self):
         self.db = xtdb2( URLROOT)
-        #self.fake = base.rpc_edn_json_http.requests.get = MagicMock(return_value='x')
-        self.fakeget = patch( 'base.rpc_edn_json_http.requests.get') # = MagicMock(return_value='x')
+        #self.fake = base.rpc_json_http.requests.get = MagicMock(return_value='x')
+        self.fakeget = patch( 'base.rpc_json_http.requests.get') # = MagicMock(return_value='x')
         self.fake = self.fakeget.start()
     def tearDown(self):
         #self.fakesend.stop()
@@ -50,7 +50,7 @@ HEADERSedn = {'accept': 'application/edn', 'content-type': 'application/edn'}
 class Posts(unittest.TestCase):
     def setUp(self):
         self.db = xtdb2( URLROOT)
-        self.fake = base.rpc_edn_json_http.requests.post = MagicMock(return_value='x')
+        self.fake = base.rpc_json_http.requests.post = MagicMock(return_value='x')
         self.datetext = '2023-01-11T11:37:07.649'
         self.datetime = datetime.datetime.fromisoformat( self.datetext)
 

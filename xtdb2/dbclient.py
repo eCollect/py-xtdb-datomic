@@ -1,4 +1,4 @@
-from base.rpc_edn_json_http import BaseClient, log #dict_without_None
+from base.rpc_json_http import BaseClient, log #dict_without_None
 #XXX TODO does it need further hacks ? .. see dbclient.RESULT_EDN
 import pprint
 import datetime

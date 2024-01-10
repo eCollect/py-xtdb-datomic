@@ -1,4 +1,4 @@
-from base.rpc_edn_json_http import BaseClient, dict_without_None, log
+from base.rpc_json_http import BaseClient, dict_without_None, log
 from base.edn import hacks, EDNClientMixin
 import edn_format
 Keyword = edn_format.Keyword

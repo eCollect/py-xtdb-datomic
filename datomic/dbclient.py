@@ -1,4 +1,4 @@
-from base.rpc_edn_json_http import BaseClient, log
+from base.rpc_json_http import BaseClient, log
 from base.edn import hacks, EDNClientMixin
 import edn_format
 from edn_format import dumps as edn_dumps
