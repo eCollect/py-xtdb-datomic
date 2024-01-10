@@ -13,6 +13,8 @@ class List( tuple):
 class XTQLop( List):
     pass
 
+from transit.transit_types import TaggedValue
+
 def transit_dumps( x):
     #print( 333333, x)
     if 0:   #for original transit-python, not needed for transit-python2
@@ -59,7 +61,7 @@ def transit_dumps( x):
     print( '\n  '.join( ['tj-dump',
         'in: '+ str(x),
         'out: '+ value,
-        'edn:'+ edn_dumps( x),
+        #'edn:'+ edn_dumps( x),
         'und:'+ str( transit_loads( value)),
         ]))
     return value
@@ -155,6 +157,11 @@ class xtdb2_read( BaseClient):
                     #basis = at_tx #as returned in submit_tx
                     #basis-timeout_s    ??
                     #as_json =False,
+                    after_tx =None,
+                            #TaggedValue( 'xtdb/tx-key', { 'tx-id': 612343,
+                                        # 'system-time':
+                                            #TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
+                                            #datetime.datetime( 2024, 1, 10, 11, 8, 36, 422964, tzinfo =datetime.UTC)
                     **ka):
         query = dict( query= query,)
         '''     {
@@ -170,6 +177,7 @@ class xtdb2_read( BaseClient):
         if in_args: query[ 'args'] = in_args
         if tz_default: query[ 'default-tz'] = tz_default
         if valid_time_all: query[ 'default-all-valid-time?'] = valid_time_all
+        if after_tx: query[ 'after-tx'] = after_tx
         #..
 
         query = transit_dumps( query)
@@ -208,8 +216,9 @@ class xtdb2( xtdb2_read):
         '''
         #TODO inside-doc valid/end-time that may or may not be funcs
         #TODO SQL is unclear - texts or what
-        import datetime
-        valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5 ), None ]
+        if 0:
+            import datetime
+            valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5 ), None ]
         valid_time_from_to = valid_time_from_to and [ me.may_time( x) for x in valid_time_from_to ]
         tx_time = me.may_time( tx_time)
 
@@ -225,7 +234,8 @@ class xtdb2( xtdb2_read):
         for d in docs:
             assert d[0] in me._transaction_types, d[0]
 
-        docs = [ XTQLop( op, { 'table-name': tbl, 'doc': doc, **tt })
+                 #XTQLop( op, dict...
+        docs = [ TaggedValue( 'xtdb.tx/'+op, { 'table-name': tbl, 'doc': doc, **tt })
                     for op,tbl,doc,tt in docs ]    #xtql-jan24
 
         ops = { 'tx-ops': docs }     #XXX assume auto key->keyword
