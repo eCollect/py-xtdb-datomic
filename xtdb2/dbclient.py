@@ -11,7 +11,31 @@ if 0:
   class XTQLop( List):
     pass
 
+from dataclasses import dataclass
+@dataclass
+class tx_key:
+    tx_id: int
+    system_time: datetime.datetime
+
+class txkey_handler:
+    _tag = 'xtdb/tx-key'
+    @classmethod
+    def tag(me,_): return me._tag
+    @staticmethod
+    def rep( x):
+        return { 'tx-id': x.tx_id, 'system-time': x.system_time }
+    @staticmethod
+    def from_rep( x):
+        return tx_key( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
+
+dt_tag = 'time/instant'
+
 from transit.transit_types import TaggedValue, Keyword, Symbol
+
+def tagval_repr( me):
+    return me.tag+'::::\n   '+pprint.pformat( me.rep).replace('\n','\n   ')
+if TaggedValue.__repr__ is not tagval_repr:
+    TaggedValue.__repr__ = tagval_repr
 
 def transit_dumps( x):
     from transit.writer import Writer
@@ -33,7 +57,7 @@ def transit_dumps( x):
 
     class dtHandler( VerboseDateTimeHandler):
         @staticmethod
-        def tag(_): return 'time/instant'
+        def tag(_): return dt_tag
     w.register( datetime.datetime, dtHandler)
 
     class ListHandler:
@@ -53,6 +77,8 @@ def transit_dumps( x):
         def rep(s): return s[1]
       w.register( XTQLop, XTQLopHandler)
 
+    w.register( tx_key, txkey_handler)
+
     w.write( x )
     value = buf.getvalue()
     print( '\n  '.join( ['tj-dump',
@@ -62,7 +88,16 @@ def transit_dumps( x):
         ]))
     return value
 
-from transit import transit_types
+from transit.decoder import Decoder
+if not hasattr( Decoder, '_decode_list'):
+    from collections.abc import Mapping
+    def decode_list(self, node, cache, as_map_key):
+        r = self._decode_list( node, cache, as_map_key)
+        if isinstance( r, Mapping):
+            r = r.__class__( (k.str if isinstance( k, Keyword) else k, v)  for k,v in r.items())
+        return r
+    Decoder._decode_list = Decoder.decode_list
+    Decoder.decode_list = decode_list
 
 def transit_loads( x, multi =False):
     from transit.reader import Reader
@@ -71,15 +106,16 @@ def transit_loads( x, multi =False):
         x = '[' + x.replace( '] [', '],[') + ']'    #jsonize a space-delimited stream of jsons XXX
     buf = StringIO( x)
     r = Reader( protocol= 'json')
-    from transit.read_handlers import KeywordHandler, DateHandler
-    if not getattr( KeywordHandler, '_dbclixed', 0):
-        KeywordHandler._dbclixed = 1
-        ##KeywordHandler.from_rep = Keyword    #staticmethod
-        TaggedValue.__repr__ = lambda me: me.tag+'::::\n   '+pprint.pformat( me.rep).replace('\n','\n   ')
-        r.register( 'time/instant', DateHandler)
-        ##class txkey_dict( edn_format.ImmutableDict ): pass  #dict
-        ##class txkey_handler: from_rep = txkey_dict
-        ##r.register( 'xtdb/tx-key', txkey_handler)
+    from transit.read_handlers import DateHandler
+    r.register( dt_tag, DateHandler)
+    r.register( txkey_handler._tag, txkey_handler)
+
+    if 0:
+        class MapHandler:
+            @staticmethod
+            def from_rep( cmap):    #CmapHandler
+                return transit_types.frozendict(pairs(cmap))
+        r.register( 'cmap', MapHandler)
 
     rr = r.read( buf)
     #rr = list( r.readeach( buf))   #hangs forever
