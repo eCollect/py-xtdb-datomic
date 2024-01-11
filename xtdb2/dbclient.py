@@ -320,7 +320,7 @@ class xtdb2( xtdb2_read):
         tx = [ 'delete', dict( table= table, eid= eid )]
         return me._use_valid_time( tx, **ka)
     @classmethod
-    def make_tx_erase( me, eid, *, table ='atablename', **ka_ignore):
+    def make_tx_erase( me, eid, *, table ='atablename', **kaignore):
         'not proven'
         return [ 'erase', dict( table= table, eid= eid )]
 

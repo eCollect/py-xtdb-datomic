@@ -29,21 +29,28 @@ docs = [
     ] #datetime.datetime.now() ) ]
 for d in docs: d.update( { db.id_name: uuid.uuid4() })
 #no tablename - use single default, atablename
+txkey= None
 
 if 10:
     txkey = log( db.tx, docs )
 
 from transit.transit_types import TaggedValue
 
-txkey = TX_key_id( tx_id= 121651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
+#txkey = TX_key_id( tx_id= 121651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
+
+from xtdb2 import qs
+qs.sym = sym
+qs.kw = kw
+qs.sym_wild = sym( '*')
 
 symFROM = sym('from')
 log( db.query,
-    #'from :atablename [a b c]' -> expects SQL
+    #'from :atablename [a b c]' -> plain text expects SQL
     ( sym('->'),
      ( symFROM, kw('atablename'), [ sym('*') ] ) ,
      #( symFROM, kw('atablename'), [ sym(x) for x in ['a', 'b', 'c' ]] ) ,
-     #( sym('where'), (sym('='), sym('a'), 2 )),
+     ( sym('where'), (sym('='), sym('a'), 2 )),
+     ( sym('limit'), 3),
     ),
 #    )
 #if 0: dict(
@@ -51,30 +58,36 @@ log( db.query,
     after_tx = txkey #TX_key_id( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
         #["~#xtdb/tx-key",["^ ","~:tx-id",612343,"~:system-time",["~#time/instant","2024-01-10T11:08:36.422964Z"]]]
     )
-if 0:
-    from xtdb2 import qs2
-    qs2.sym = sym
-    qs2.kw = kw
-    qs2.sym_wild = sym( '*')
 
-    log( db.query, qs2.s(
-        qs2.fromtable( 'xt/txs',  )
+log( db.query, qs.s(
+    qs.pipeline(
+        qs.fromtable( 'atablename',  ),
+        qs.where( qs.funcs.eq( qs.Var('a'), 2 )),
+        qs.with_columns( z= qs.funcs.add( qs.Var('a'), 1) ),
+        qs.orderby( orders={ 'xt/id': True } ),
+        qs.limit( 3),
+        #qs.funcs.substring( qs.Var('xt/id'), 1,1) ))
+    )))
+
+if 0:
+    log( db.query, qs.s(
+        qs.fromtable( 'xt/txs',  )
         ))
-    log( db.query, qs2.s(
-        qs2.pipeline(
-            qs2.fromtable( 'xt/txs',  ),
-            #qs2.aggregate( qs2.funcs.aggr_max( sym('xt/id'))), no
-            qs2.orderby(
+    log( db.query, qs.s(
+        qs.pipeline(
+            qs.fromtable( 'xt/txs',  ),
+            #qs.aggregate( qs.funcs.aggr_max( sym('xt/id'))), no
+            qs.orderby(
                 #sym('xt/id') ,
-                #qs2.OrderSpec( sym('xt/id') , desc=True),
+                #qs.OrderSpec( sym('xt/id') , desc=True),
                 orders= { sym('xt/id'): True }
                 ),
-            qs2.limit(1)
+            qs.limit(1)
             )
         ))
 if 0:
-    log( db.query, qs2.s(
-        qs2.fromtable( 'atablename', 'a', 'b' )
+    log( db.query, qs.s(
+        qs.fromtable( 'atablename', 'a', 'b' )
         ))
 
 # vim:ts=4:sw=4:expandtab
