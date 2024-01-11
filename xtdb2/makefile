@@ -1,4 +1,4 @@
-now: t1
+now: try
 
 PORT=3002
 REMOVE_AT_EXIT=--rm

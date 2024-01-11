@@ -4,7 +4,7 @@ import pprint
 import datetime
 from io import StringIO
 
-DEBUG = 1
+DEBUG = 0
 
 if 0:
   class List( tuple):
@@ -157,7 +157,7 @@ class xtdb2_read( BaseClient):
     id_sql  = id_name.replace( '/', '$')
     #id_kw   = Keyword( id_name)
 
-    txs_tablename = 'xt/txs'    #special table containing states of all transactions
+    txs_table = 'xt/txs'    #special table containing states of all transactions
 
     ##### rpc methods
     debug = 1
@@ -230,14 +230,21 @@ class xtdb2_read( BaseClient):
             raise
 
 class xtdb2( xtdb2_read):
-    def submit_tx( me, docs, tz_default =None, tx_time =None, valid_time_from_to =None, as_json =False):
+    def submit_tx( me, docs,
+                    table =None,                #default for put
+                    valid_time_from_to =None,   #default for put
+                    tz_default =None,
+                    tx_time =None,
+                    as_json =False
+                    ):
         '''
         tx_time: system-time: overrides system-time for the transaction, mustn’t be earlier than any previous system-time.
         tz_default: default-tz: overrides the default time zone for the transaction
+        table + valid_time_from_to - defaults for making tx_puts from docs if dicts
         '''
         #TODO inside-doc valid/end-time that may or may not be funcs
         #TODO SQL is unclear - texts or what
-        if 10:
+        if 0:
             import datetime
             valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5, tzinfo= datetime.UTC ), None ]
         valid_time_from_to = valid_time_from_to and [ me.may_time( x) for x in valid_time_from_to ]
@@ -245,20 +252,20 @@ class xtdb2( xtdb2_read):
 
         if isinstance( docs, dict): docs = [ docs ]
         assert isinstance( docs, (list,tuple)), docs
-        for d in docs:
-            assert isinstance( d, dict), d
 
-        txs = [ me.make_tx_put( d, valid_time_from_to= valid_time_from_to)
-                 if isinstance( d, dict)
-                 else d
+        txs = [ d if not isinstance( d, dict) else
+                me.make_tx_put( d, table= table, valid_time_from_to= valid_time_from_to)
                 for d in docs ]
         for op,tx in txs:
             assert op in me._transaction_types, op
-            table = tx.pop( 'table', None)
-            if table: tx[ 'table-name' ] = me._table_as_json( table, as_json)
+            if isinstance( tx, dict):
+                table = tx.pop( 'table', None)
+                if table: tx[ 'table-name' ] = me._table_as_json( table, as_json)
 
                  #XTQLop( op, dict...
-        txs = [ TaggedValue( 'xtdb.tx/'+op, tx ) for op,tx in txs ]    #xtql-jan24
+        txs = [ TaggedValue( 'xtdb.tx/'+op
+                if 'xtql' not in tx else 'xtdb.tx/xtql'
+                , tx ) for op,tx in txs ]    #xtql-jan24
 
         ops = { 'tx-ops': txs }     #XXX assume auto key->keyword
         if tx_time or tz_default:   #general for whole tx
@@ -277,7 +284,8 @@ class xtdb2( xtdb2_read):
 
     _transaction_types = '''
         put delete erase
-        insert-into assert-exists assert-not-exists
+        insert
+        assert-exists assert-not-exists
         call put-fn
         '''.split()    #call = v1.fn ; erase = v1.evict
         ##update-table delete-from erase-from
@@ -289,66 +297,80 @@ class xtdb2( xtdb2_read):
         if as_json: return name
         return Keyword( 'xt/'+name)
     @classmethod
-    def _use_valid_time( me, optx, valid_time_from_to =None):
+    def _use_valid_time( me, optx, valid_time_from_to =None, as_json =False):
         op,tx = optx
         if valid_time_from_to:
             time_valid_from, time_valid_to = valid_time_from_to
+            if as_json: raise NotImplemented
             if time_valid_from:
                 tx[ me._time_valid_from ] = time_valid_from
             if time_valid_to:
                 tx[ me._time_valid_to ] = time_valid_to
         return optx
 
-    @staticmethod
-    def _table_as_json( table, as_json =False):
+    _table_name = 'table-name'
+    @classmethod
+    def _use_table( me, optx, table, as_json =False):
+        op,tx = optx
+        assert table and isinstance( table, str), table
         if as_json:
-            assert isinstance( table, str), table
+            raise NotImplemented
         else:
-            if isinstance( table, str): table = Keyword( table)
-            assert isinstance( table, Keyword), table
-        return table
+            tx[ me._table_name ] = Keyword( table)
+        return optx
+
+    # some-inspiration: v2/api/src/main/clojure/xtdb/api.clj
+    #TODO: put+delete operations can be passed to `during`, `starting-from` or `until` to set the effective valid time of the operation.
 
     @classmethod
-    def make_tx_put( me, doc, *, table ='atablename', **ka):
-        assert doc.get( me.id_name), doc    #for json, and always, dicts are auto-keyworded later
-        #else: assert doc.get( me.id_kw), doc      #for edn/transit
-        tx = [ 'put', dict( table= table, doc= dict( doc ))]
-        return me._use_valid_time( tx, **ka)
+    def make_tx_put( me, doc, *, table, valid_time_from_to =None, as_json =False):
+        'put=upsert'
+        assert doc.get( me.id_name), doc    #always, dicts are auto-key2keyworded later
+        tx = [ 'put', dict( doc= dict( doc ))]  #copy.. just in case?
+        me._use_table( tx, table, as_json)
+        return me._use_valid_time( tx, valid_time_from_to, as_json)
     @classmethod
-    def make_tx_delete( me, eid, *, table ='atablename', **ka):
-        'not proven'
-        tx = [ 'delete', dict( table= table, eid= eid )]
-        return me._use_valid_time( tx, **ka)
+    def make_tx_delete( me, xtid, *, table, valid_time_from_to =None, as_json =False):
+        tx = [ 'delete', { me.id_name: xtid }]
+        me._use_table( tx, table, as_json)
+        return me._use_valid_time( tx, valid_time_from_to, as_json)
     @classmethod
-    def make_tx_erase( me, eid, *, table ='atablename', **kaignore):
-        'not proven'
-        return [ 'erase', dict( table= table, eid= eid )]
+    def make_tx_erase( me, xtid, *, table, as_json =False):
+        assert table and isinstance( table, str), table
+        tx = [ 'erase', { me.id_name: xtid }]
+        return me._use_table( tx, table, as_json)
 
-    #TODO these dont match submit_tx protocol?
     @classmethod
-    def make_tx_insert_into( me, query, table ='atablename', **ka):
-        '''To specify a valid-time range, the query may return xt/valid-from and/or xt/valid-to columns. If not provided, these will default as per put'''
-        table = me._table_as_json( table, **ka)
-        return [ 'insert-into', dict( table= table, query= query )]
+    def make_tx_insert_many( me, query, *, table):
+        '''insert-into
+            To specify a valid-time range, the query may return xt/valid-from and/or xt/valid-to columns. If not provided, these will default as per put'''
+        assert table and isinstance( table, str), table
+        op = 'insert'   #hmmm, it's not ..-into
+        return [ op, dict( xtql= (Symbol( op), Keyword( table), query ))]
+
     @staticmethod
     def make_tx_assert_exists( query):
-        return [ 'assert-exists', query ]
+        op = 'assert-exists'
+        return [ op, dict( xtql= (Symbol( op), query)) ]
     @staticmethod
     def make_tx_assert_notexists( query):
-        return [ 'assert-not-exists', query ]
+        op = 'assert-not-exists'
+        return [ op, dict( xtql= (Symbol( op), query)) ]
 
-    #TODO : update-table delete-from erase-from
+    #TODO
+    #update_many = xtql, (update table opts unify_clauses)
+    #delete_many = xtql, (delete table bind-or-opts unify_clauses)
+    #erase_many  = xtql, (erase  table bind-or-opts unify_clauses)
 
-    #these are unclear
+    #these are unclear, untested
     @staticmethod
     def make_tx_func_decl( funcname, body):
-        if isinstance( funcname, str): funcname = Keyword( funcname)
-        assert isinstance( funcname, Keyword), funcname
-        return [ 'put-fn', funcname, body ]
+        assert funcname and isinstance( funcname, str), funcname
+        assert body     and isinstance( body, str), body
+        return [ 'putFn', { 'fn-id': Keyword( funcname), 'tx-fn': body } ]  #maybe
     @staticmethod
-    def make_tx_func_use( funcname, *args):
-        if isinstance( funcname, str): funcname = Keyword( funcname)
-        assert isinstance( funcname, Keyword), funcname
-        return [ 'call', funcname, *args ]
+    def make_tx_func_call( funcname, *args):
+        assert funcname and isinstance( funcname, str), funcname
+        return [ 'call', { 'fn-id': Keyword( funcname), 'args': args } ]  #maybe
 
 # vim:ts=4:sw=4:expandtab
