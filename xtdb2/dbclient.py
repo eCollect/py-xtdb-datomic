@@ -1,20 +1,24 @@
 from base.rpc_json_http import BaseClient, log #dict_without_None
-#XXX TODO does it need further hacks ? .. see dbclient.RESULT_EDN
+
+####### transit-json stuff
+
+DEBUG = 0
+
 import pprint
 import datetime
 from io import StringIO
+from dataclasses import dataclass
 
-DEBUG = 0
+from transit.transit_types import TaggedValue, Keyword, Symbol
+from transit import write_handlers
+#+few others below
 
 if 0:
   class List( tuple):
     def __new__( me, *a):
         return super().__new__( me, a)
-  class XTQLop( List):
-    pass
 
-from dataclasses import dataclass
-@dataclass
+@dataclass( frozen =True)
 class TX_key_id:
     tx_id: int
     system_time: datetime.datetime
@@ -32,19 +36,11 @@ class txkey_handler:
 
 dt_tag = 'time/instant'
 
-from transit.transit_types import TaggedValue, Keyword, Symbol
-
 def tagval_repr( me):
     return me.tag+'::::\n   '+pprint.pformat( me.rep).replace('\n','\n   ')
 if TaggedValue.__repr__ is not tagval_repr:
     TaggedValue.__repr__ = tagval_repr
 
-from transit import write_handlers
-if 0:
-  class wKeywordHandler2( write_handlers.KeywordHandler):
-    @staticmethod
-    def rep(k): return k.name
-    string_rep = rep
 
 class wMapHandler_auto_keywordize( write_handlers.MapHandler):
     @staticmethod
@@ -70,14 +66,6 @@ def transit_dumps( x):
     if 1:
         #w.register( List, wListHandler)     #tuple==list==array/vector
         w.register( tuple, wListHandler)     #tuple -> xtdb/list i.e. sequence ; list -> vector
-
-    if 0:
-      class XTQLopHandler:
-        @staticmethod
-        def tag(s): return 'xtdb.tx/'+s[0]
-        @staticmethod
-        def rep(s): return s[1]
-      w.register( XTQLop, XTQLopHandler)
 
     w.register( TX_key_id, txkey_handler)
 
@@ -160,33 +148,42 @@ class xtdb2_read( BaseClient):
     def openapi_yaml( me): return me._get( 'openapi.yaml')
 
     def query( me, query, *, args ={},
-                    tz_default =None,
-                    valid_time_all =False,  # default-all-valid-time?
-                    #basis = { at_tx: as returned in submit_tx , current-time: the-now-to-use }
-                    #basis-timeout_s    ??
-                    #as_json =False,
+                    tz_default =None,       #= #time/zone "America/Los_Angeles" or "Z" , maybe a java.time/zone like
+                    valid_time_is_all   =False, # default-all-valid-time?
+                    after_tx :TX_key_id =None,  # as returned from submit_tx
+                    at_tx    :TX_key_id =None,  # as returned from submit_tx ; overrides after_tx ; basis
+                    current_time        =None,  # the-now-to-use ; basis
+                    #basis   :dict = None
+                    #   at_tx: as returned from submit_tx
+                    #   current-time: the-now-to-use
                     explain= False,
-                    after_tx =None, #TaggedValue( 'xtdb/tx-key', { 'tx-id': 612343, 'system-time': TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
-                    tx_timeout_s =None,
-                    **ka):
+                    tx_timeout_s :int =None,    # for after_tx/at_tx
+                    #as_json =False,
+                    ):
         ''' https://docs.xtdb.com/reference/main/xtql/queries.html
-            '''
+        '''
         assert isinstance( query, (str, tuple)), query
         query = dict( query= query,)
         if args:
             assert isinstance( args, dict), args
             query[ 'args'] = args
-        if tz_default: query[ 'default-tz'] = tz_default    #???
-        if valid_time_all: query[ 'default-all-valid-time?'] = valid_time_all
-        if explain: query[ 'explain?'] = bool(explain)
+        if tz_default: query[ 'default-tz'] = tz_default    #??? TaggedValue( 'time/zone', 'Pacific/Fiji')
+        if valid_time_is_all: query[ 'default-all-valid-time?'] = bool( valid_time_is_all)
+        if explain: query[ 'explain?'] = bool( explain)
         if after_tx:
-            assert isinstance( after_tx, TX_key_id), after_tx #.. but can be TaggedValue too
+            assert isinstance( after_tx, TX_key_id), after_tx   #.. but can be TaggedValue too
             query[ 'after-tx'] = after_tx
+        if at_tx:
+            assert isinstance( at_tx, TX_key_id), at_tx         #.. but can be TaggedValue too
+            query.setdefault( 'basis', {}).update( { 'at-tx': at_tx })
+        if current_time:
+            assert isinstance( current_time, datetime.datetime), current_time
+            query.setdefault( 'basis', {}).update( { 'current-time': current_time })
         if tx_timeout_s:
             assert isinstance( tx_timeout_s, int), tx_timeout_s
             query[ 'tx-timeout'] = TaggedValue( 'time/duration', f'PT{tx_timeout_s}S')
 
-        assert not ka, ka       #TODO
+        #assert not ka, ka
 
         query = transit_dumps( query)
         return me._post( 'query',
@@ -214,22 +211,21 @@ class xtdb2_read( BaseClient):
 
 class xtdb2( xtdb2_read):
     def submit_tx( me, docs,
-                    table =None,                #default for put
-                    valid_time_from_to =None,   #default for put
+                    table =None,                # the default for put, ignored for all else
+                    valid_time_from_to =None,   # the default for put, ignored for all else
                     tz_default =None,
                     tx_time =None,
                     as_json =False
                     ):
         ''' https://docs.xtdb.com/reference/main/xtql/txs.html
-        tx_time: system-time: overrides system-time for the transaction, mustn’t be earlier than any previous system-time.
-        tz_default: default-tz: overrides the default time zone for the transaction
+        tx_time   = system-time: overrides system-time for the transaction, mustn’t be earlier than any previous system-time.
+        tz_default= default-tz: overrides the default time zone for the transaction
         table + valid_time_from_to - defaults for making tx_puts from docs if dicts
         '''
 
         #TODO inside-doc valid/end-time that may or may not be funcs
         #TODO SQL is unclear - texts or what
         if 0:
-            import datetime
             valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5, tzinfo= datetime.UTC ), None ]
         valid_time_from_to = valid_time_from_to and [ me.may_time( x) for x in valid_time_from_to ]
         tx_time = me.may_time( tx_time)
@@ -246,12 +242,10 @@ class xtdb2( xtdb2_read):
                 table = tx.pop( 'table', None)
                 if table: tx[ 'table-name' ] = me._table_as_json( table, as_json)
 
-                 #XTQLop( op, dict...
-        txs = [ TaggedValue( 'xtdb.tx/'+op
-                if 'xtql' not in tx else 'xtdb.tx/xtql'
-                , tx ) for op,tx in txs ]    #xtql-jan24
+        txs = [ TaggedValue( 'xtdb.tx/'+op if 'xtql' not in tx else 'xtdb.tx/xtql'
+                    , tx ) for op,tx in txs ]    #xtql-jan24
 
-        ops = { 'tx-ops': txs }     #XXX assume auto key->keyword
+        ops = { 'tx-ops': txs }
         if tx_time or tz_default:   #general for whole tx
             ops[ 'opts' ] = {
                 'system-time': tx_time,     #XXX XTQL only?
@@ -329,8 +323,8 @@ class xtdb2( xtdb2_read):
         tx = [ 'erase', { me.id_name: xtid }]
         return me._use_table( tx, table, as_json)
 
-    @classmethod
-    def make_tx_insert_many( me, query, *, table):
+    @staticmethod
+    def make_tx_insert_many( query, *, table):
         '''insert-into: copy-many-from-query-into-table
             To specify a valid-time range, the query may return xt/valid-from and/or xt/valid-to columns. If not provided, these will default as per put'''
         assert table and isinstance( table, str), table

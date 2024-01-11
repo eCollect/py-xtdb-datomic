@@ -134,6 +134,6 @@ log( db.query, qs.s(
         qs.pipeline(
             qs.fromtable( 'atablename', ),
             qs.where( qs.funcs.eq( qs.Var('a'), 9 )),
-        )), after_tx = txkey )
+        )), after_tx = txkey) #, explain=1 )
 
 # vim:ts=4:sw=4:expandtab
