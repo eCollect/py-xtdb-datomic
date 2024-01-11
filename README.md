@@ -12,17 +12,17 @@ xtdb v2 introduces new architecture, new composable query language xtql, and sql
 status so far: 
  + http-rest api wrapper-drivers - ok+tests - datomic, xtdb/v1, xtdb/v2
  + representing edn-format + datalog query-builder - ok+tests - datomic+xtdb/v1
- ~ tests exist, not very ordered
+ - other tests exist, not very ordered
  - all else is still in flux.. - schema, objmapper, unitofwork, etc
- ~ xtdb.v1 multinode , dockers
+ + xtdb.v1 multinode , dockers
  	+ kafka, with kraft or zookeeper
 	+ postgresql
 	+ kafka+postgresql
 	- partial-order in kafka ?
- ~ datomic
+ + datomic
  	+ schema - ok+tests
  	- multinode - no
- ~ xtdb.v2 (still alpha):
+ + xtdb.v2 (still alpha):
 	+ xtql query-builder - ok+doctests 
 	+ http-api over transit-json - only few tests
 	- http-api over json-ld (not yet)
