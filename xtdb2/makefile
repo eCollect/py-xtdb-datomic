@@ -36,4 +36,6 @@ q2:
 try:
 	PYTHONPATH=.. python try2.py $(ARGS)
 
+test: q2 try
+
 # vim:ts=4:sw=4:noexpandtab

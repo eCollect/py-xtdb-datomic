@@ -31,7 +31,7 @@ for d in docs: d.update( { db.id_name: uuid.uuid4() })
 #no tablename - use single default, atablename
 
 if 10:
-    log( db.tx, docs )
+    txkey = log( db.tx, docs )
 
 from transit.transit_types import TaggedValue
 
@@ -45,15 +45,7 @@ log( db.query,
     ),
 #    )
 #if 0: dict(
-    after_tx = tx_key( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
-    #after_tx = TaggedValue( 'xtdb/tx-key', {
-        #'tx-id': 21651,
-        #'system-time': datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC)
-        #'tx-id': 612343,
-        #'system-time':
-        #    TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
-        #})
-        #{Keyword(tx-id): 612343, Keyword(system-time): datetime.datetime(2024, 1, 10, 11, 8, 36, 422964, tzinfo=tzutc())}
+    after_tx = txkey #tx_key( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
         #["~#xtdb/tx-key",["^ ","~:tx-id",612343,"~:system-time",["~#time/instant","2024-01-10T11:08:36.422964Z"]]]
     )
 if 0:

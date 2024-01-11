@@ -37,37 +37,37 @@ def tagval_repr( me):
 if TaggedValue.__repr__ is not tagval_repr:
     TaggedValue.__repr__ = tagval_repr
 
+from transit import write_handlers
+if 0:
+  class wKeywordHandler2( write_handlers.KeywordHandler):
+    @staticmethod
+    def rep(k): return k.name
+    string_rep = rep
+
+class wMapHandler_auto_keywordize( write_handlers.MapHandler):
+    @staticmethod
+    def rep(m):
+        return dict( (Keyword( k) if not isinstance( k, Keyword) else k,v)
+                for k,v in m.items())
+class wDatetimeHandler( write_handlers.VerboseDateTimeHandler):
+    @staticmethod
+    def tag(_): return dt_tag
+
+class wListHandler:
+    @staticmethod
+    def tag(_): return 'list'
+    @staticmethod
+    def rep(s): return list(s)
+
 def transit_dumps( x):
     from transit.writer import Writer
-    from transit.write_handlers import KeywordHandler, MapHandler, VerboseDateTimeHandler
     buf = StringIO()
     w = Writer( buf, 'json' )
-    if 0:
-      class KeywordHandler2( KeywordHandler):
-        @staticmethod
-        def rep(k): return k.name
-        string_rep = rep
-
-    class MapHandler2( MapHandler):
-        @staticmethod
-        def rep(m):
-            return dict( (Keyword( k) if not isinstance( k, Keyword) else k,v)
-                    for k,v in m.items())
-    w.register( dict,  MapHandler2 )
-
-    class dtHandler( VerboseDateTimeHandler):
-        @staticmethod
-        def tag(_): return dt_tag
-    w.register( datetime.datetime, dtHandler)
-
-    class ListHandler:
-        @staticmethod
-        def tag(_): return 'list'
-        @staticmethod
-        def rep(s): return list(s)
+    w.register( dict, wMapHandler_auto_keywordize )
+    w.register( datetime.datetime, wDatetimeHandler)
     if 1:
-        #w.register( List,  ListHandler)     #tuple==list==array/vector
-        w.register( tuple, ListHandler)     #tuple -> xtdb/list i.e. sequence ; list -> vector
+        #w.register( List, wListHandler)     #tuple==list==array/vector
+        w.register( tuple, wListHandler)     #tuple -> xtdb/list i.e. sequence ; list -> vector
 
     if 0:
       class XTQLopHandler:
@@ -88,6 +88,7 @@ def transit_dumps( x):
         ]))
     return value
 
+#auto de-keywordize dicts
 from transit.decoder import Decoder
 if not hasattr( Decoder, '_decode_list'):
     from collections.abc import Mapping
@@ -111,11 +112,11 @@ def transit_loads( x, multi =False):
     r.register( txkey_handler._tag, txkey_handler)
 
     if 0:
-        class MapHandler:
+        class rMapHandler:
             @staticmethod
             def from_rep( cmap):    #CmapHandler
                 return transit_types.frozendict(pairs(cmap))
-        r.register( 'cmap', MapHandler)
+        r.register( 'cmap', rMapHandler)
 
     rr = r.read( buf)
     #rr = list( r.readeach( buf))   #hangs forever
