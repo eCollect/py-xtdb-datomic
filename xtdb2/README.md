@@ -16,8 +16,7 @@ older:
 * full bitemporality in querying (time ranges)
 * arbitrary nested data access/querying - match
 * gradual schema (maybe, still schema-less)
-
-* * transactions have has assert-exists/notexists-over-query as mechanism for constraints
+* transactions have has assert-exists/notexists over-query as a mechanism for constraints
 
 discussions: 
  https://discuss.xtdb.com/t/several-questions-on-2-0/206 
@@ -27,15 +26,16 @@ findings:
 * most operations require a tablename to associate the data with it
 * full-text-search and similars would be external?
 * http-encoding is transit+json (and maybe json-LD later?):
-  * has own Keyword, Symbol .. etc, no more edn_format
   * use transit-python2 fork of abandoned cognitect/transit-python 
     * for whatever reason, list and tuple are both mapped to Array, while List is unmapped?
+  * has own Keyword, Symbol .. etc, no more edn_format
 * NO http/transit documentation, so it’s reverse engineering and MITMproxying between a Clojure Repl (run clojure over deps.edn), and the (docker) xtdb-server
 
 state of this wrapper - jan'24:
 * completely new dbclient, separate from xtdb1
 	* no more edn/edn_format ; base.qsyntax.sym/kw/kw2 should be copied if needed 
-* tweaks for transit:
+* completely new qs2 xtql-query-builder, as of https://docs.xtdb.com/reference/main/xtql/queries.html
+* dbclient tweaks for transit:
 	* auto-keywordize/de-keywordize dicts
 	* auto-convert datetime to/from #time/instant
 	* more specifics below
@@ -45,8 +45,8 @@ state of this wrapper - jan'24:
 	* returns dict with only lastCompleted / lastSubmitted #xtdb/tx-key maps
 * POST /query ↔︎ ts+json
   * qyery-type is guessing - if query=dict then it’s XTQL, if query=text, it is SQL
-  * needs sequences i.e. (<operator> ...) , to be special #list tagged value-lists 
-  * needs datetimes to be #time/instant, does not understand m/t transit-types
+  * needs tuple/sequences i.e. (<operator> ...) , to be special #list tagged value-lists 
+  * needs datetimes to be #time/instant, does not understand the m/t transit-types
   *	result ts+json is so-called streaming json, i.e. yields a "stream" of space delimited small jsons, not a json-array of those
   	* so, with limit:1 it returns exactly one dict (not list of one dict) ; with limit:2 it returns space-delimited text of dicts - not json-array 
 		*  ''' ["^ ","~:id",1] ["^ ","~:id",12] '''

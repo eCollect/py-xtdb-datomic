@@ -1,4 +1,4 @@
-now: try
+now: t1
 
 PORT=3002
 REMOVE_AT_EXIT=--rm
@@ -37,5 +37,8 @@ try:
 	PYTHONPATH=.. python try2.py $(ARGS)
 
 test: q2 try
+
+t1:
+	PYTHONPATH=.. python test_requests.py $(ARGS)
 
 # vim:ts=4:sw=4:noexpandtab

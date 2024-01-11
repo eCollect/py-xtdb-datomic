@@ -4,6 +4,8 @@ import pprint
 import datetime
 from io import StringIO
 
+DEBUG = 1
+
 if 0:
   class List( tuple):
     def __new__( me, *a):
@@ -81,7 +83,8 @@ def transit_dumps( x):
 
     w.write( x )
     value = buf.getvalue()
-    print( '\n  '.join( ['tj-dump',
+    if DEBUG:
+        print( '\n  '.join( ['tj-dump',
         'in: '+ str(x),
         'out: '+ value,
         'und:'+ str( transit_loads( value)),
@@ -152,7 +155,9 @@ class xtdb2_read( BaseClient):
 
     id_name = 'xt/id'       #use in objs/dicts i/o data , in json
     id_sql  = id_name.replace( '/', '$')
-    id_kw   = Keyword( id_name)
+    #id_kw   = Keyword( id_name)
+
+    txs_tablename = 'xt/txs'    #special table containing states of all transactions
 
     ##### rpc methods
     debug = 1
@@ -161,39 +166,45 @@ class xtdb2_read( BaseClient):
     def latest_submitted_tx( me): return me.status()[ 'latestSubmittedTx' ]
     def openapi_yaml( me): return me._get( 'openapi.yaml')
 
-    def query( me, query, *in_args,
+    def query( me, query, *, args ={},
                     tz_default =None,
                     valid_time_all =False,
                     #basis = at_tx #as returned in submit_tx
                     #basis-timeout_s    ??
                     #as_json =False,
+                    explain= False,
                     after_tx =None,
                             #TaggedValue( 'xtdb/tx-key', { 'tx-id': 612343,
                                         # 'system-time':
                                             #TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
                                             #datetime.datetime( 2024, 1, 10, 11, 8, 36, 422964, tzinfo =datetime.UTC)
                     **ka):
+        assert isinstance( query, (str, tuple)), query
         query = dict( query= query,)
         '''     {
                 "query": xtdb/list( (from ..) ),
-                "basis": null or { :at-tx: .. },
-                "basis-timeout": null, ??
-                "args": [ {} ], ??
+                "basis": null or { :at-tx: .., current-time: .. },
+                "tx-timeout": null, ??
+                "args": null or { :name: value } , ??
                 "default-all-valid-time?": true,
                 "default-tz": null ??
                 }
             https://docs.xtdb.com/reference/main/xtql/queries.html
             '''
-        if in_args: query[ 'args'] = in_args
+        if args:
+            assert isinstance( args, dict), args
+            query[ 'args'] = args
         if tz_default: query[ 'default-tz'] = tz_default
         if valid_time_all: query[ 'default-all-valid-time?'] = valid_time_all
-        if after_tx: query[ 'after-tx'] = after_tx
+        if after_tx:
+            #assert isinstance( after_tx, tx_key).. but can be TaggedValue too
+            query[ 'after-tx'] = after_tx
+        if explain: query[ 'explain?'] = bool(explain)
         #..
 
         query = transit_dumps( query)
 
-        assert not in_args  #TODO
-        assert not ka       #TODO
+        assert not ka, ka       #TODO
 
         return me._post( 'query',
                 data= query,
