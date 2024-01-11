@@ -870,9 +870,9 @@ preds = predicates
 
 timefilters = dictAttr( (f.__name__, f) for f in _all_subclasses_of( TemporalFilter))
 
-__all__ = set(
+__all__ = sorted( set(
     [ c.__name__ for c in [
-        Name_Expr, OrderSpec, pipeline, Case,
+        Name_Expr, OrderSpec, pipeline, Case, Var
         #Var, Param,  ???
         ] +
     list( itertools.chain.from_iterable( _all_subclasses_of( base) for base in [
@@ -884,8 +884,9 @@ __all__ = set(
     funcs_registry funcs
     predicates preds
     timefilters
+    s
     '''.split()
-    )
+    ))
 
 if __name__ == '__main__':
     if 0*'dbg':
