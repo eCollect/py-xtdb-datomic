@@ -344,15 +344,17 @@ class OrderSpec:
      desc       -> dir= :desc or :asc
      nulls_last -> nulls= :last or :first
     '''
-    expr: Expr
+    expr: Expr     # XXX but xtdb-server says: 'TODO order-by spec can only take a column as val'
+    #expr: str
     _: KW_ONLY
     desc:       bool =None
     nulls_last: bool =None
     def s( me, **kaignore):
+        s_expr = s( sym( me.expr) if isinstance( me.expr, str) else me.expr )
         if me.desc is None and me.nulls_last is None:
-            return s( me.expr)      #shortcut
+            return s_expr      #shortcut
         return dict(
-            val= s( me.expr),
+            val= s_expr,
             **({} if me.desc is None else dict( dir= kw( 'desc' if me.desc else 'asc'))),
             **({} if me.nulls_last is None else dict( nulls = kw( 'last' if me.nulls_last else 'first'))),
             )
@@ -362,9 +364,15 @@ class OrderSpec:
 @dataclass
 class orderby( Transform):
     '''op/order-by
-    >>> test( orderby( 'a', OrderSpec( 'c', desc=3), b=True, d= dict( desc=True, nulls_last=True) ))
-    orderby(orders=[OrderSpec(expr='a', desc=None, nulls_last=None), OrderSpec(expr='c', desc=3, nulls_last=None), OrderSpec(expr='b', desc=True, nulls_last=None), OrderSpec(expr='d', desc=True, nulls_last=True)])
-     ('%order-by', 'a', {'val': 'c', 'dir': ':desc'}, {'val': 'b', 'dir': ':desc'}, {'val': 'd', 'dir': ':desc', 'nulls': ':last'})
+    >>> test( orderby(
+    ...     'a',
+    ...     OrderSpec( 'c', desc=3),
+    ...     orders= dict( o=True),
+    ...     b=True,
+    ...     d= dict( desc=True, nulls_last=True)
+    ...     ))
+    orderby(orders=[OrderSpec(expr='a', desc=None, nulls_last=None), OrderSpec(expr='c', desc=3, nulls_last=None), OrderSpec(expr='o', desc=True, nulls_last=None), OrderSpec(expr='b', desc=True, nulls_last=None), OrderSpec(expr='d', desc=True, nulls_last=True)])
+     ('%order-by', '%a', {'val': '%c', 'dir': ':desc'}, {'val': '%o', 'dir': ':desc'}, {'val': '%b', 'dir': ':desc'}, {'val': '%d', 'dir': ':desc', 'nulls': ':last'})
     '''
     orders: List[ OrderSpec ]
     Spec = OrderSpec
