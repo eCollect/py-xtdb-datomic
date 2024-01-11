@@ -9,9 +9,7 @@ docs = [
 txkey = db.tx( docs, table= 'atable' )
 
 from xtdb2 import qs
-qs.sym = Symbol
-qs.kw = Keyword
-qs.sym_wild = Symbol( '*')
+qs.sym, qs.kw, qs.sym_wild = Symbol, Keyword, Symbol( '*')
 from xtdb2.qs import *
 print( *db.query( s(
     pipeline(
