@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from dbclient import xtdb2, log, Keyword, Symbol, tx_key
+from dbclient import xtdb2, log, Keyword, Symbol, TX_key_id
 import datetime
 #from pprint import pprint
 import uuid
@@ -35,6 +35,8 @@ if 10:
 
 from transit.transit_types import TaggedValue
 
+txkey = TX_key_id( tx_id= 121651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
+
 symFROM = sym('from')
 log( db.query,
     #'from :atablename [a b c]' -> expects SQL
@@ -45,7 +47,8 @@ log( db.query,
     ),
 #    )
 #if 0: dict(
-    after_tx = txkey #tx_key( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
+    tx_timeout_s = 2, #TaggedValue( 'time/duration', 'PT3S'),
+    after_tx = txkey #TX_key_id( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
         #["~#xtdb/tx-key",["^ ","~:tx-id",612343,"~:system-time",["~#time/instant","2024-01-10T11:08:36.422964Z"]]]
     )
 if 0:

@@ -15,7 +15,7 @@ if 0:
 
 from dataclasses import dataclass
 @dataclass
-class tx_key:
+class TX_key_id:
     tx_id: int
     system_time: datetime.datetime
 
@@ -28,7 +28,7 @@ class txkey_handler:
         return { 'tx-id': x.tx_id, 'system-time': x.system_time }
     @staticmethod
     def from_rep( x):
-        return tx_key( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
+        return TX_key_id( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
 
 dt_tag = 'time/instant'
 
@@ -79,7 +79,7 @@ def transit_dumps( x):
         def rep(s): return s[1]
       w.register( XTQLop, XTQLopHandler)
 
-    w.register( tx_key, txkey_handler)
+    w.register( TX_key_id, txkey_handler)
 
     w.write( x )
     value = buf.getvalue()
@@ -173,11 +173,8 @@ class xtdb2_read( BaseClient):
                     #basis-timeout_s    ??
                     #as_json =False,
                     explain= False,
-                    after_tx =None,
-                            #TaggedValue( 'xtdb/tx-key', { 'tx-id': 612343,
-                                        # 'system-time':
-                                            #TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
-                                            #datetime.datetime( 2024, 1, 10, 11, 8, 36, 422964, tzinfo =datetime.UTC)
+                    after_tx =None, #TaggedValue( 'xtdb/tx-key', { 'tx-id': 612343, 'system-time': TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
+                    tx_timeout_s =None,
                     **ka):
         assert isinstance( query, (str, tuple)), query
         query = dict( query= query,)
@@ -194,12 +191,15 @@ class xtdb2_read( BaseClient):
         if args:
             assert isinstance( args, dict), args
             query[ 'args'] = args
-        if tz_default: query[ 'default-tz'] = tz_default
+        if tz_default: query[ 'default-tz'] = tz_default    #???
         if valid_time_all: query[ 'default-all-valid-time?'] = valid_time_all
-        if after_tx:
-            #assert isinstance( after_tx, tx_key).. but can be TaggedValue too
-            query[ 'after-tx'] = after_tx
         if explain: query[ 'explain?'] = bool(explain)
+        if after_tx:
+            assert isinstance( after_tx, TX_key_id), after_tx #.. but can be TaggedValue too
+            query[ 'after-tx'] = after_tx
+        if tx_timeout_s:
+            assert isinstance( tx_timeout_s, int), tx_timeout_s
+            query[ 'tx-timeout'] = TaggedValue( 'time/duration', f'PT{tx_timeout_s}S')
         #..
 
         query = transit_dumps( query)
