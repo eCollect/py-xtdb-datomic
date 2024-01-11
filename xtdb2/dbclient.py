@@ -130,6 +130,7 @@ def transit_loads( x, multi =False):
 class xtdb2_read( BaseClient):
     '''
     https://docs.xtdb.com/reference/main.html
+    XXX no luck in docs? some inspiration: <v2-branch>/api/src/main/clojure/xtdb/api.clj
     ./v2/openapi.yaml
     TODO: sql
     '''
@@ -146,48 +147,32 @@ class xtdb2_read( BaseClient):
         accept= BaseClient._app_json,
         )
 
-    if 0:
-      def _response( me, r, tj_multi =False):
-        result = super()._response( r)
-        if isinstance( result, bytes):
-            return transit_loads( result.decode( 'utf8'), multi= tj_multi)  #hope it is utf8 ?
-        return result
-
     id_name = 'xt/id'       #use in objs/dicts i/o data , in json
     id_sql  = id_name.replace( '/', '$')
-    #id_kw   = Keyword( id_name)
 
     txs_table = 'xt/txs'    #special table containing states of all transactions
 
     ##### rpc methods
     debug = 1
     def status( me): return me._get( 'status')
-    def latest_completed_tx( me): return me.status()[ 'latestCompletedTx' ]
-    def latest_submitted_tx( me): return me.status()[ 'latestSubmittedTx' ]
+    def latest_completed_tx( me): return me.status()[ 'latest-completed-tx' ]
+    def latest_submitted_tx( me): return me.status()[ 'latest-submitted-tx' ]
     def openapi_yaml( me): return me._get( 'openapi.yaml')
 
     def query( me, query, *, args ={},
                     tz_default =None,
-                    valid_time_all =False,
-                    #basis = at_tx #as returned in submit_tx
+                    valid_time_all =False,  # default-all-valid-time?
+                    #basis = { at_tx: as returned in submit_tx , current-time: the-now-to-use }
                     #basis-timeout_s    ??
                     #as_json =False,
                     explain= False,
                     after_tx =None, #TaggedValue( 'xtdb/tx-key', { 'tx-id': 612343, 'system-time': TaggedValue( 'time/instant',"2024-01-10T11:08:36.422964Z")
                     tx_timeout_s =None,
                     **ka):
+        ''' https://docs.xtdb.com/reference/main/xtql/queries.html
+            '''
         assert isinstance( query, (str, tuple)), query
         query = dict( query= query,)
-        '''     {
-                "query": xtdb/list( (from ..) ),
-                "basis": null or { :at-tx: .., current-time: .. },
-                "tx-timeout": null, ??
-                "args": null or { :name: value } , ??
-                "default-all-valid-time?": true,
-                "default-tz": null ??
-                }
-            https://docs.xtdb.com/reference/main/xtql/queries.html
-            '''
         if args:
             assert isinstance( args, dict), args
             query[ 'args'] = args
@@ -200,12 +185,10 @@ class xtdb2_read( BaseClient):
         if tx_timeout_s:
             assert isinstance( tx_timeout_s, int), tx_timeout_s
             query[ 'tx-timeout'] = TaggedValue( 'time/duration', f'PT{tx_timeout_s}S')
-        #..
-
-        query = transit_dumps( query)
 
         assert not ka, ka       #TODO
 
+        query = transit_dumps( query)
         return me._post( 'query',
                 data= query,
                 ka_response= dict( tj_multi= True),     #XXX if not as_json
@@ -237,11 +220,12 @@ class xtdb2( xtdb2_read):
                     tx_time =None,
                     as_json =False
                     ):
-        '''
+        ''' https://docs.xtdb.com/reference/main/xtql/txs.html
         tx_time: system-time: overrides system-time for the transaction, mustn’t be earlier than any previous system-time.
         tz_default: default-tz: overrides the default time zone for the transaction
         table + valid_time_from_to - defaults for making tx_puts from docs if dicts
         '''
+
         #TODO inside-doc valid/end-time that may or may not be funcs
         #TODO SQL is unclear - texts or what
         if 0:
@@ -319,30 +303,35 @@ class xtdb2( xtdb2_read):
             tx[ me._table_name ] = Keyword( table)
         return optx
 
-    # some-inspiration: v2/api/src/main/clojure/xtdb/api.clj
-    #TODO: put+delete operations can be passed to `during`, `starting-from` or `until` to set the effective valid time of the operation.
+
+    #TODO: put/delete/delete-from/update-table operations
+    #      can be passed to `during`, `starting-from` or `until` to set the effective valid time of the operation.
+    #       or ??? can use valid_time_from_to like `put` does ?? XXX
+
 
     @classmethod
     def make_tx_put( me, doc, *, table, valid_time_from_to =None, as_json =False):
-        'put=upsert'
+        'put: one = upsert'
         assert doc.get( me.id_name), doc    #always, dicts are auto-key2keyworded later
         tx = [ 'put', dict( doc= dict( doc ))]  #copy.. just in case?
         me._use_table( tx, table, as_json)
         return me._use_valid_time( tx, valid_time_from_to, as_json)
     @classmethod
     def make_tx_delete( me, xtid, *, table, valid_time_from_to =None, as_json =False):
+        'delete: one'
         tx = [ 'delete', { me.id_name: xtid }]
         me._use_table( tx, table, as_json)
         return me._use_valid_time( tx, valid_time_from_to, as_json)
     @classmethod
     def make_tx_erase( me, xtid, *, table, as_json =False):
+        'erase: one completely, all valid time'
         assert table and isinstance( table, str), table
         tx = [ 'erase', { me.id_name: xtid }]
         return me._use_table( tx, table, as_json)
 
     @classmethod
     def make_tx_insert_many( me, query, *, table):
-        '''insert-into
+        '''insert-into: copy-many-from-query-into-table
             To specify a valid-time range, the query may return xt/valid-from and/or xt/valid-to columns. If not provided, these will default as per put'''
         assert table and isinstance( table, str), table
         op = 'insert'   #hmmm, it's not ..-into
@@ -350,10 +339,12 @@ class xtdb2( xtdb2_read):
 
     @staticmethod
     def make_tx_assert_exists( query):
+        'stop transaction if fails'
         op = 'assert-exists'
         return [ op, dict( xtql= (Symbol( op), query)) ]
     @staticmethod
     def make_tx_assert_notexists( query):
+        'stop transaction if fails'
         op = 'assert-not-exists'
         return [ op, dict( xtql= (Symbol( op), query)) ]
 
