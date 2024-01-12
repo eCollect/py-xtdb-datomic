@@ -6,17 +6,19 @@ https://docs.xtdb.com/reference/main/stdlib/predicates.html
 
 collection-arguments... are quite rich.. wildest example:
     orderby( 'a', 'xt/id', funcs.add( 'x',1), orderby.Spec( 'b', desc=True), orders= { 'xt/another': True, .. } , c=True, d= dict( desc=True, nulls_last=True)
-+ most collection-arguments can be a combination of positionals (i.e. x, *args),
-  op-specific-named-collection (i.e. binds=[..]), and named/keyword-args (i.e. a=3, **kargs)
-  BEWARE they are used in exactly this order!
-  dicts keep their order of assignment, but  subquery('a',b=3,c=4,args=['d'])  is same as subquery( 'a',args=['d'],b=3,c=4) -> [ 'a','d','b','c' ]
-+ positionals can be whatever the first-arg-of-spec allows, or full-spec-constructed
-  e.g. orderby( 'a', 'xt/id', funcs.add( 'x', 1), orderby.Spec( ..whatever..) )
-+ op-specific-named-collection can be list/tuple, same as positionals - or a dict of k:v taking anything allowed
-  e.g. orderby( 'a', orderby.Spec( 'me', True), args= [ 'x', orderby.Spec( 'orders', True), orderby.Spec( 'xt/id', True), orderby.Spec( funcs.add( 'x', 1), desc=True) ] )
-  same orderby( 'a', orders= { 'me': True, 'x': None, 'orders': True, 'xt/id': True } )
-+ named/keyword-args - names need be strings, and cannot be same as some other parameter of that construct,
-      e.g. 'xt/id' is fine but not 'args' or 'me' for subquery(), and cannot be funcs.add(..) for orderby
++ most collection-arguments can be a combination of
+    * positionals (i.e. x,y, *args),
+    * op-specific named-collection (i.e. binds=[..]),
+    * named/keyword-args (i.e. a=3, **kargs)
+  BEWARE, they are walked/used in EXACTLY this ORDER!
+    dicts keep their order of assignment, but  subquery('a',b=3,c=4,args=['d'])  is same as subquery( 'a',args=['d'],b=3,c=4) -> [ 'a','d','b','c' ]
++ positionals - can be whatever the first-arg-of-spec allows, or full-spec-constructed
+    e.g. orderby( 'a', 'xt/id', funcs.add( 'x', 1), orderby.Spec( ..whatever..) )
++ op-specific named-collection - can be list/tuple, same as positionals - or a dict of k:v taking anything allowed
+    e.g. orderby( 'a', orderby.Spec( 'me', True), args= [ 'x', orderby.Spec( 'orders', True), orderby.Spec( 'xt/id', True), orderby.Spec( funcs.add( 'x', 1), desc=True) ] )
+    same orderby( 'a', orders= { 'me': True, 'x': None, 'orders': True, 'xt/id': True } )
++ named/keyword-args - names need be strings, and cannot be same as other parameter of that op-construct,
+    e.g. 'xt/id' is fine but not 'me' or 'args' for subquery(), and cannot be non-strings like funcs.add(..) for orderby
 -- NO: remove *a_binds, binds=() combination and rely only on *binds -> NO, cannot use dc_replace, disallows explicity ; anyway having both does not break anything
 -- NO: have arg-multiples, i.e. single-arg-being-dict-of-args .. was added then removed, as overkill.. use either **{..} (if non-conflicting), or items={..} (anything), or fullspec-arg thing.Spec( ..) (anything)
 '''
