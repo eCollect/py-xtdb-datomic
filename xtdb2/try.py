@@ -33,7 +33,7 @@ docs = [
     ] #datetime.datetime.now() ) ]
 for d in docs: addid( d)
 txkey= None
-if 0:
+if 10:
     txkey = log( db.tx, docs, table= 'atablename' )
 
 from transit.transit_types import TaggedValue
@@ -83,7 +83,7 @@ if 0:
             qs.limit(1)
             )
         ))
-if 0:
+if 10:
     log( db.query, qs.s(
         qs.fromtable( 'atablename', 'a', 'b' )
         ))
@@ -108,32 +108,43 @@ if 0:
         ]
     txkey = log( db.tx, docs2, table= 'btablename' )
 
-log( db.query, qs.s(
-            qs.fromtable( 'btablename', )
-            ), after_tx = txkey )
-print('======')
-docs3 = [
-    db.make_tx_insert_many( qs.s(
-            qs.fromtable( 'btablename', ),
-        ), table= 'atablename'),
-    dict( a=321, b='x', **makeid()),
-    ]
-txkey = log( db.tx, docs3, table= 'atablename' )
-r = log( db.query, qs.s(
-        qs.pipeline(
-            qs.fromtable( 'atablename', ),
-            qs.where( qs.funcs.eq( qs.Var('a'), 9 )),
-        )), after_tx = txkey )
+if 0:
+    log( db.query, qs.s(
+                qs.fromtable( 'btablename', )
+                ), after_tx = txkey )
+    print('======')
+    docs3 = [
+        db.make_tx_insert_many( qs.s(
+                qs.fromtable( 'btablename', ),
+            ), table= 'atablename'),
+        dict( a=321, b='x', **makeid()),
+        ]
+    txkey = log( db.tx, docs3, table= 'atablename' )
+    r = log( db.query, qs.s(
+            qs.pipeline(
+                qs.fromtable( 'atablename', ),
+                qs.where( qs.funcs.eq( qs.Var('a'), 9 )),
+            )), after_tx = txkey )
 
-print('======')
-docs4 = [
-    db.make_tx_erase( r[0][ db.id_name ], table= 'atablename'),
-    ]
-txkey = log( db.tx, docs4 )
-log( db.query, qs.s(
-        qs.pipeline(
-            qs.fromtable( 'atablename', ),
-            qs.where( qs.funcs.eq( qs.Var('a'), 9 )),
-        )), after_tx = txkey) #, explain=1 )
+    print('======')
+    docs4 = [
+        db.make_tx_erase( r[0][ db.id_name ], table= 'atablename'),
+        ]
+    txkey = log( db.tx, docs4 )
+    log( db.query, qs.s(
+            qs.pipeline(
+                qs.fromtable( 'atablename', ),
+                qs.where( qs.funcs.eq( qs.Var('a'), 9 )),
+            )), after_tx = txkey) #, explain=1 )
+
+if 1:
+    log( db.query, qs.s(
+        qs.relation( qs.Param('t'), 'a','b'
+        )), args= dict( t= [ dict(a=1, b=2), dict( a=3, b=4) ])
+        )
+'''
+rel ( $t [a b])
+      {:args {:t [{:a 1, :b 2}, {:a 3, :b 4}]}})
+'''
 
 # vim:ts=4:sw=4:expandtab

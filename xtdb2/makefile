@@ -1,4 +1,4 @@
-now: try
+now: qs
 
 PORT=3002
 REMOVE_AT_EXIT=--rm
@@ -31,12 +31,12 @@ test_db:
 b2: ARGS=x.test_create
 b2: test_db
 
-q2:
-	python qs2.py
+qs:
+	python qs.py
 try:
 	PYTHONPATH=.. python try.py $(ARGS)
 
-test: q2 try
+test: qs try
 
 t1:
 	PYTHONPATH=.. python test_requests.py $(ARGS)
