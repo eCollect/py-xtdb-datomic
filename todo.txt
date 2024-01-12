@@ -8,20 +8,13 @@
       - either .uuid7 over last 8 rand_b bits , or .uuid8 over whole subsec_b (8-bit, lsb)
     * XXX probably also depend on system time being monotonous
 
-* xtdb/v2: edn vs transit+json :
-  * use own independent keyword, symbol, immutable_dict/list
-    * rework qsyntax-atoms: keyword, symbol, immutable_dict/list, to be independent of edn-or-whatever
-      * also see xtdb.astory2xt: Keyword.__repr__/__lt__
-    * rework rpc/dbclients: convert above between independent and edn-or-whatever
-  * or (now) use edn_format.*, convert to/from transit
-
-* xtdb/v2: is now very different from v1.. needs some rework of dbclient, and big rework of xtq/query-ing, and then most tests too
+* xtdb/v2: 
+  + query-builder
+  + dbclient 
+  - rework rpc/dbclients: convert sym/kw/immutables between independent and whatever-specific?
+  - transit+json : source-wise, seems slow. try speed up ?
 
 ###########
-
-https://juxt-oss.zulipchat.com/#narrow/stream/194466-xtdb-users/topic/trying.20xtdb.20in.20financial.20stuff
-
-# $$ paid consultation -> $$ paid devel of certain features -> $$ paid support eventualy, 
 
 - objmapper.. maybe common ??
     - save:
@@ -45,6 +38,7 @@ https://juxt-oss.zulipchat.com/#narrow/stream/194466-xtdb-users/topic/trying.20x
             - to-one
             - to-many
 
+- unitofwork ?
 
 requiredness: 
  ?   transaction-function rejecting data if xyz missing
