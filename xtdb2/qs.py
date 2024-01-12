@@ -40,7 +40,7 @@ def _init_items( me, name, type, items, allow_empty =False, allow_these =()):
         assert items
     for i in items:
         assert isinstance( i, type) or i in allow_these, i
-    object.__setattr__( me, name, items)    #dataclass.frozen
+    object.__setattr__( me, name, tuple( items))    #dataclass.frozen
 
 def _init_item( me, name, type, item, allow_empty =False, convert =False):
     if item is None:
@@ -51,19 +51,31 @@ def _init_item( me, name, type, item, allow_empty =False, convert =False):
     object.__setattr__( me, name, item)     #dataclass.frozen
 
 def _init_convert_items( me, name, type, *items_srcs, keep =(), maker =None, allow_empty =False):
+    '''each of items_srcs can be:
+        - dict -> each k,v given to maker( k,v)
+        - tuple/list of either str -> type( str)), or dict -> each k,v given to maker( k,v)
+        '''
     if not maker: maker = type
-    items = tuple( itertools.chain.from_iterable(
-        tuple( maker( k,v) for k,v in isrc.items()) if isinstance( isrc, dict) else isrc
-        for isrc in items_srcs
-        ))
-    names = set( i if isinstance( i, str) else i.name
-                for i in itertools.chain.from_iterable( items_srcs))
-                #items are names or types or dict( name: vv)
+    if 0*'old-no-arg-multiples':
+         items = tuple( itertools.chain.from_iterable(
+             tuple( maker( k,v) for k,v in isrc.items())
+                if isinstance( isrc, dict)
+                else [ i if isinstance( i, type) or i in keep else type( i) for i in isrc ]
+             for isrc in items_srcs
+             ))
+    items = []
+    for isrc in items_srcs:
+        if isinstance( isrc, dict):  #ka_orders
+            items.extend( maker( k,v) for k,v in isrc.items())
+            continue
+        for i in isrc:  #a_orders / orders = tuple/list
+            if isinstance( i, dict):    #somearg = dict( ..)
+                items.extend( maker( k,v) for k,v in i.items())
+                continue
+            items.append( i if isinstance( i, type) or i in keep else type( i) )
+    names = set( i.name if isinstance( i, type) else i for i in items)
     assert len( names) == len( items), items_srcs
-    _init_items( me, name, type,
-            [ b if isinstance( b, type) or b in keep else type( b) for b in items ],
-            allow_these= keep, allow_empty= allow_empty
-            )
+    _init_items( me, name, type, items, allow_these= keep, allow_empty= allow_empty)
 
 class Source: 'op/source'
 class Transform: 'op/tail'
@@ -196,13 +208,13 @@ BindSpec = Name_Expr
 class fromtable( Source, Unifyable):
     '''
     >>> test( fromtable( 'tbl', 'a', 'b'))
-    fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)], time_valid=None, time_tx=None)
+    fromtable(table='tbl', binds=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)), time_valid=None, time_tx=None)
      ('%from', ':tbl', ['%a', '%b'])
     >>> test( fromtable( 'tbl', 'a', whole=True, time_valid= all_time, time_tx= at( datetime.date( 2024, 1, 5))))
-    fromtable(table='tbl', binds=['%*', Name_Expr(name='a', expr=None)], time_valid=all_time(), time_tx=at(timestamp=datetime.date(2024, 1, 5)))
+    fromtable(table='tbl', binds=('%*', Name_Expr(name='a', expr=None)), time_valid=all_time(), time_tx=at(timestamp=datetime.date(2024, 1, 5)))
      ('%from', ':tbl', {'bind': ['%*', '%a'], 'for-valid-time': ':all-time', 'for-system-time': ('%at', datetime.date(2024, 1, 5))})
     >>> test( dc_replace( fromtable( 'tbl', 'a', whole=True),  binds= ['b','c']))
-    fromtable(table='tbl', binds=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=None)], time_valid=None, time_tx=None)
+    fromtable(table='tbl', binds=(Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=None)), time_valid=None, time_tx=None)
      ('%from', ':tbl', ['%b', '%c'])
 
     '''
@@ -211,7 +223,7 @@ class fromtable( Source, Unifyable):
     whole:  InitVar =False
     time_valid: TemporalFilter =None
     time_tx:    TemporalFilter =None
-    Spec = BindSpec
+    Spec = Bind = BindSpec
     def __init__( me, table, *a_binds, binds= (), whole =False, time_valid =None, time_tx =None, **ka_binds):
         _init_item( me, 'table', str, table)
         _init_item( me, 'time_valid', TemporalFilter, time_valid, allow_empty= True)
@@ -238,16 +250,16 @@ class fromtable( Source, Unifyable):
 class relation( Source, Unifyable):
     '''op/rel - can come from constant, query-argument, value-in-another-doc (as Transform?)
     >>> test( relation( 'myrel', 'a', 'b'))
-    relation(expr='myrel', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)])
+    relation(expr='myrel', binds=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)))
      ('%rel', 'myrel', ['%a', '%b'])
 
     #>>> test( relation( [ dict(a=1, b=2), dict( a=3,b=4)] ))
-    #relation(expr=[{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], binds=[])
+    #relation(expr=({'a': 1, 'b': 2}, {'a': 3, 'b': 4}], binds=())
     # ('%rel', [{:a 1, :b 2}, {:a 3, :b 4}])
     '''
     expr: Expr
     binds: List[ BindSpec ]
-    Spec = BindSpec
+    Spec = Bind = BindSpec
     def __init__( me, expr, *a_binds, binds= (), **ka_binds):
         _init_item( me, 'expr', Expr, expr)
         _init_convert_items( me, 'binds', BindSpec, a_binds, binds, ka_binds)
@@ -261,15 +273,15 @@ ArgSpec = Name_Expr
 class join( Unifyable):
     '''op/join
     >>> test( join( fromtable( 'tbl', whole=True), 'x'))
-    join(query=fromtable(table='tbl', binds=['%*'], time_valid=None, time_tx=None), binds=[Name_Expr(name='x', expr=None)], args=[])
+    join(query=fromtable(table='tbl', binds=('%*',), time_valid=None, time_tx=None), binds=(Name_Expr(name='x', expr=None),), args=())
      ('%join', ('%from', ':tbl', ['%*']), ['%x'])
     '''
     xtql = 'join'
     query:  Forward( 'Query')
     binds:  List[ BindSpec ]
     args:   List[ ArgSpec ] =()
-    Spec = BindSpec
-    ArgSpec = ArgSpec
+    Spec = Bind = BindSpec = BindSpec
+    Arg = ArgSpec = ArgSpec
     def __init__( me, query, *a_binds, binds =(), args =()):
         'no **ka_* as ambitious, use args=dict and binds=dict'
         _init_item( me, 'query', Query, query)
@@ -288,16 +300,16 @@ class leftjoin( join):
 class subquery( _expr):
     '''subq/subquery
     >>> test( subquery( fromtable( 'tbl', 'a'), args= [ 'b', Name_Expr( 'c', 2) ] ))
-    subquery(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)])
+    subquery(query=fromtable(table='tbl', binds=(Name_Expr(name='a', expr=None),), time_valid=None, time_tx=None), args=(Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)))
      ('%q', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
     >>> test( subquery( fromtable( 'tbl', 'a'), args= dict( b=None, c=2) ))
-    subquery(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)])
+    subquery(query=fromtable(table='tbl', binds=(Name_Expr(name='a', expr=None),), time_valid=None, time_tx=None), args=(Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)))
      ('%q', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
     '''
     xtql = 'q'
     query: Forward( 'Query')
     args: List[ ArgSpec ] =()
-    Spec = ArgSpec
+    Spec = Arg = ArgSpec
     def __init__( me, query, *a_args, args= (), **ka_args):
         _init_item( me, 'query', Query, query)
         _init_convert_items( me, 'args', ArgSpec, a_args, args, ka_args)
@@ -306,7 +318,7 @@ class subquery( _expr):
 class exists( subquery):
     '''subq/exists
     >>> test( exists( fromtable( 'tbl', 'a'), args= dict( b=None, c=2) ))
-    exists(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)])
+    exists(query=fromtable(table='tbl', binds=(Name_Expr(name='a', expr=None),), time_valid=None, time_tx=None), args=(Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)))
      ('%exists', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
     '''
     xtql = 'exists'
@@ -314,7 +326,7 @@ class exists( subquery):
 class pull( subquery):
     '''subq/pull
     >>> test( pull( fromtable( 'tbl', 'a'), args= dict( b=None, c=2), many=True ))
-    pull(query=fromtable(table='tbl', binds=[Name_Expr(name='a', expr=None)], time_valid=None, time_tx=None), args=[Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)], many=True)
+    pull(query=fromtable(table='tbl', binds=(Name_Expr(name='a', expr=None),), time_valid=None, time_tx=None), args=(Name_Expr(name='b', expr=None), Name_Expr(name='c', expr=2)), many=True)
      ('%pull*', ('%from', ':tbl', ['%a']), {'args': ['%b', {':c': 2}]})
     '''
     many: bool =False
@@ -349,6 +361,10 @@ class OrderSpec:
     _: KW_ONLY
     desc:       bool =None
     nulls_last: bool =None
+    def __init__( me, expr, *, desc =None, nulls_last =None):
+        _init_item( me, 'expr', Expr, expr)
+        _init_item( me, 'desc', bool, desc, convert= True, allow_empty= True)
+        _init_item( me, 'nulls_last', bool, nulls_last, convert= True, allow_empty= True)
     def s( me, **kaignore):
         s_expr = s( sym( me.expr) if isinstance( me.expr, str) else me.expr )
         if me.desc is None and me.nulls_last is None:
@@ -364,18 +380,52 @@ class OrderSpec:
 @dataclass
 class orderby( Transform):
     '''op/order-by
-    >>> test( orderby(
-    ...     'a',
-    ...     OrderSpec( 'c', desc=3),
-    ...     orders= dict( o=True),
-    ...     b=True,
-    ...     d= dict( desc=True, nulls_last=True)
+    >>> test( orderby(  #singles
+    ...     'e1',       #arg1: expr
+    ...     OrderSpec( 'e2', desc=3),    #arg1: full-spec
+    ...     orderby.Spec( 'e3', desc=3), #arg1: full-spec - same as OrderSpec
+    ...     n1= True,   #karg1: name= isdescending
+    ...     n2= False,  #karg1: name= isdescending
+    ...     n3= dict( desc=True, nulls_last=True),   #karg1: name= spec
     ...     ))
-    orderby(orders=[OrderSpec(expr='a', desc=None, nulls_last=None), OrderSpec(expr='c', desc=3, nulls_last=None), OrderSpec(expr='o', desc=True, nulls_last=None), OrderSpec(expr='b', desc=True, nulls_last=None), OrderSpec(expr='d', desc=True, nulls_last=True)])
-     ('%order-by', '%a', {'val': '%c', 'dir': ':desc'}, {'val': '%o', 'dir': ':desc'}, {'val': '%b', 'dir': ':desc'}, {'val': '%d', 'dir': ':desc', 'nulls': ':last'})
+    orderby(orders=(OrderSpec(expr='e1', desc=None, nulls_last=None), OrderSpec(expr='e2', desc=True, nulls_last=None), OrderSpec(expr='e3', desc=True, nulls_last=None), OrderSpec(expr='n1', desc=True, nulls_last=None), OrderSpec(expr='n2', desc=False, nulls_last=None), OrderSpec(expr='n3', desc=True, nulls_last=True)))
+     ('%order-by', '%e1', {'val': '%e2', 'dir': ':desc'}, {'val': '%e3', 'dir': ':desc'}, {'val': '%n1', 'dir': ':desc'}, {'val': '%n2', 'dir': ':asc'}, {'val': '%n3', 'dir': ':desc', 'nulls': ':last'})
+    >>> test( orderby(  #multiples1
+    ...     dict( d1=dict( nulls_last=True), d2=True ), #argM: multiple of name=isdescending-or-spec
+    ...     orders= dict( o1=True, o2=False),   #either argM dict, or tuple/list of arg1
+    ...     ))
+    orderby(orders=(OrderSpec(expr='d1', desc=None, nulls_last=True), OrderSpec(expr='d2', desc=True, nulls_last=None), OrderSpec(expr='o1', desc=True, nulls_last=None), OrderSpec(expr='o2', desc=False, nulls_last=None)))
+     ('%order-by', {'val': '%d1', 'nulls': ':last'}, {'val': '%d2', 'dir': ':desc'}, {'val': '%o1', 'dir': ':desc'}, {'val': '%o2', 'dir': ':asc'})
+    >>> test( orderby(  #multiples2
+    ...     { 1234: False, funcs.add('a','b'): True },    #argM: multiple of expr=isdescending-or-spec
+    ...     orders= [ 'p1', orderby.Spec( 'p2', desc=5), ], #either argM dict, or tuple/list of arg1
+    ...     ))
+    orderby(orders=(OrderSpec(expr=1234, desc=False, nulls_last=None), OrderSpec(expr=func_any(name='add', args=('a', 'b')), desc=True, nulls_last=None), OrderSpec(expr='p1', desc=None, nulls_last=None), OrderSpec(expr='p2', desc=True, nulls_last=None)))
+     ('%order-by', {'val': 1234, 'dir': ':asc'}, {'val': ('%+', 'a', 'b'), 'dir': ':desc'}, '%p1', {'val': '%p2', 'dir': ':desc'})
+    >>> test( orderby(  #no repeating expr/name
+    ...     'a',       #arg1: expr
+    ...     OrderSpec( 'a', desc=3),    #arg1: full-spec
+    ...     ))
+    Traceback (most recent call last):
+    ...
+    AssertionError: (('a', OrderSpec(expr='a', desc=True, nulls_last=None)), (), {})
+    >>> test( orderby(  #no repeating expr/name
+    ...     OrderSpec( 'a', desc=3),    #arg1: full-spec
+    ...     a=True     #arg1: name=isdescending
+    ...     ))
+    Traceback (most recent call last):
+    ...
+    AssertionError: ((OrderSpec(expr='a', desc=True, nulls_last=None),), (), {'a': True})
+    >>> test( orderby(  #no repeating expr/name
+    ...     OrderSpec( 'a', desc=3),    #arg1: full-spec
+    ...     dict( b=False, a=True),     #argM
+    ...     ))
+    Traceback (most recent call last):
+    ...
+    AssertionError: ((OrderSpec(expr='a', desc=True, nulls_last=None), {'b': False, 'a': True}), (), {})
     '''
     orders: List[ OrderSpec ]
-    Spec = OrderSpec
+    Spec = Order = OrderSpec
     def __init__( me, *a_orders, orders =(), **ka_orders):
         _init_convert_items( me, 'orders', OrderSpec, a_orders, orders, ka_orders,
                         maker= lambda k,v: OrderSpec( k, **(v if isinstance( v, dict) else dict( desc= bool(v) )))
@@ -389,9 +439,15 @@ class limit( Transform):
     >>> test( limit( 34))
     limit(value=34)
      ('%limit', 34)
+    >>> test( limit( '34'))     #strictly int
+    Traceback (most recent call last):
+    ...
+    AssertionError: 34
     '''
     xtql = 'limit'
     value: int #TODO non-negative
+    def __init__( me, value):
+        _init_item( me, 'value', int, value)
     def s( me, **kaignore):
         return (sym( me.xtql), me.value)
 class offset( limit):
@@ -446,13 +502,13 @@ ReturnSpec = Name_Expr
 class exact_columns( Transform):
     '''op/return - name=col if-expr-else =var
     >>> test( exact_columns( 'a', b= funcs.add( 'c', 1)))
-    exact_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+    exact_columns(columns=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))))
      ('%return', '%a', {':b': ('%+', 'c', 1)})
     >>> test( exact_columns( 'a', columns= dict( b=2) ))
-    exact_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=2)])
+    exact_columns(columns=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=2)))
      ('%return', '%a', {':b': 2})
     >>> test( exact_columns( 'a' ))
-    exact_columns(columns=[Name_Expr(name='a', expr=None)])
+    exact_columns(columns=(Name_Expr(name='a', expr=None),))
      ('%return', '%a')
     >>> test( exact_columns())
     Traceback (most recent call last):
@@ -460,7 +516,7 @@ class exact_columns( Transform):
     AssertionError
     '''
     columns: List[ ReturnSpec ]
-    Spec = ReturnSpec
+    Spec = Return = ReturnSpec
     def __init__( me, *a_columns, columns =(), **ka_columns):
         _init_convert_items( me, 'columns', ReturnSpec, a_columns, columns, ka_columns)
     def s( me, **kaignore):
@@ -471,13 +527,13 @@ WithSpec = Name_Expr
 class with_columns( Transform, Unifyable):
     '''op/with - differs in pipeline/name=col-if-expr vs unify/name=var-if-expr ; if no expr, name=var/withvar
     >>> test( with_columns( 'a', 'b'))
-    with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)])
+    with_columns(columns=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)))
      ('%with', '%a', '%b')
     >>> test( with_columns( 'a', b= funcs.add( 'c', 1)))
-    with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+    with_columns(columns=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))))
      ('%with', '%a', {':b': ('%+', 'c', 1)})
     >>> test( with_columns( 'a', b= funcs.add( 'c', 1)), name_as_sym=True)
-    with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+    with_columns(columns=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))))
      ('%with', '%a', {'%b': ('%+', 'c', 1)})
     >>> test( with_columns())
     Traceback (most recent call last):
@@ -485,7 +541,7 @@ class with_columns( Transform, Unifyable):
     AssertionError
     '''
     columns: List[ WithSpec ]
-    Spec = WithSpec
+    Spec = With = WithSpec
     def __init__( me, *a_columns, columns =(), **ka_columns):
         _init_convert_items( me, 'columns', WithSpec, a_columns, columns, ka_columns)
     def s( me, name_as_sym =False):
@@ -496,10 +552,10 @@ AggrSpec = Name_Expr
 class aggregate( Transform):    #TODO same as exact_columns/return?
     '''op/aggregate - name=col if-expr-else =var
     >>> test( aggregate( 'a', b= funcs.add( 'c', 1)))
-    aggregate(items=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))])
+    aggregate(items=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=func_any(name='add', args=('c', 1)))))
      ('%aggregate', '%a', {':b': ('%+', 'c', 1)})
     >>> test( aggregate( 'a' ))
-    aggregate(items=[Name_Expr(name='a', expr=None)])
+    aggregate(items=(Name_Expr(name='a', expr=None),))
      ('%aggregate', '%a')
     >>> test( aggregate())
     Traceback (most recent call last):
@@ -507,7 +563,7 @@ class aggregate( Transform):    #TODO same as exact_columns/return?
     AssertionError
     '''
     items: List[ AggrSpec ]
-    Spec = AggrSpec
+    Spec = Aggr = AggrSpec
     def __init__( me, *a_items, items=(), **ka_items):
         _init_convert_items( me, 'items', AggrSpec, a_items, items, ka_items)
     def s( me, **kaignore):
@@ -524,7 +580,7 @@ class unify( Source):
     ...     where( p_gt( 'a', 'b'), p_min( 'a', 'b') ),
     ...     with_columns( 'a', x= 'b'),
     ...     ))
-    unify(sources=(fromtable(table='docs', binds=[Name_Expr(name='my-nested-rel', expr=None)], time_valid=None, time_tx=None), relation(expr='my-nested-rel', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)]), where(predicates=(p_gt(items=('a', 'b')), p_min(items=('a', 'b')))), with_columns(columns=[Name_Expr(name='a', expr=None), Name_Expr(name='x', expr='b')])))
+    unify(sources=(fromtable(table='docs', binds=(Name_Expr(name='my-nested-rel', expr=None),), time_valid=None, time_tx=None), relation(expr='my-nested-rel', binds=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None))), where(predicates=(p_gt(items=('a', 'b')), p_min(items=('a', 'b')))), with_columns(columns=(Name_Expr(name='a', expr=None), Name_Expr(name='x', expr='b')))))
      ('%unify', ('%from', ':docs', ['%my-nested-rel']), ('%rel', 'my-nested-rel', ['%a', '%b']), ('%where', ('%>', 'a', 'b'), ('%least', 'a', 'b')), ('%with', '%a', {'%x': 'b'}))
     >>> test( unify(
     ...     fromtable( 'docs', whole=True ),
@@ -533,7 +589,7 @@ class unify( Source):
     Traceback (most recent call last):
     ...
         assert not i.has_whole(), i
-    AssertionError: fromtable(table='docs', binds=['%*'], time_valid=None, time_tx=None)
+    AssertionError: fromtable(table='docs', binds=('%*',), time_valid=None, time_tx=None)
     '''
     sources: List[ Unifyable ]
     def __init__( me, *sources):
@@ -547,28 +603,38 @@ class unify( Source):
 
 @dataclass
 class pipeline:
-    '''op/->
+    '''op/->  .. but strips itself if source-only
     >>> test( pipeline(
     ...     fromtable( 'docs', 'a', 'b' ),
     ...     where( p_gt( 'a', 'b')),
     ...     ))
-    pipeline(source=fromtable(table='docs', binds=[Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)], time_valid=None, time_tx=None), transforms=(where(predicates=(p_gt(items=('a', 'b')),)),))
+    pipeline(source=fromtable(table='docs', binds=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)), time_valid=None, time_tx=None), transforms=(where(predicates=(p_gt(items=('a', 'b')),)),))
      ('%->', ('%from', ':docs', ['%a', '%b']), ('%where', ('%>', 'a', 'b')))
     >>> test( pipeline(
     ...     relation( 'a', 'b'),        #wrong i know
     ...     where( p_gt( 'a', 'b')),
     ...     ))
-    pipeline(source=relation(expr='a', binds=[Name_Expr(name='b', expr=None)]), transforms=(where(predicates=(p_gt(items=('a', 'b')),)),))
+    pipeline(source=relation(expr='a', binds=(Name_Expr(name='b', expr=None),)), transforms=(where(predicates=(p_gt(items=('a', 'b')),)),))
      ('%->', ('%rel', 'a', ['%b']), ('%where', ('%>', 'a', 'b')))
+    >>> test( pipeline(
+    ...     fromtable( 'docs', 'a', 'b' ),
+    ...     ))
+    fromtable(table='docs', binds=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)), time_valid=None, time_tx=None)
+     ('%from', ':docs', ['%a', '%b'])
     '''
     source: Source
     transforms: List[ Transform ] =()
-    def __init__( me, source, *argstfs, transforms= ()):
+    def __new__( klas, source, *transforms):
+        if not transforms:
+            assert isinstance( source, Source), source
+            return source
+        return super().__new__( klas)
+    def __init__( me, source, *transforms):
         _init_item( me, 'source', Source, source)
-        assert not (transforms and argstfs)
-        _init_items( me, 'transforms', Transform, transforms or argstfs, allow_empty =True)
+        _init_items( me, 'transforms', Transform, transforms)
     def s( me, **kaignore):
         return s_sym( '->', me.source, *me.transforms)
+query = pipeline
 
 Query = Union[ Source, pipeline ]
 
@@ -787,13 +853,13 @@ import itertools
 @dataclass
 class f_cond( Func):
     '''fn/cond
-    >>> test( f_cond( Case( 3, 45), Case( funcs.add(7,8), 9) , default= -34))
+    >>> test( f_cond( f_cond.Case( 3, 45), f_cond.Case( funcs.add(7,8), 9) , default= -34))
     f_cond(cases=(Case(value=3, result=45), Case(value=func_any(name='add', args=(7, 8)), result=9)), default=-34)
      ('%cond', 3, 45, ('%+', 7, 8), 9, -34)
     '''
+    Case = Case
     cases: List[ Case ]
     default: Expr =None
-    Case = Case
     def __init__( me, *cases, default :Expr =None):
         assert default or cases
         _init_item( me, 'default', Expr, default, allow_empty= True)
@@ -809,14 +875,14 @@ class f_cond( Func):
 @dataclass
 class f_switch( Func):
     '''fn/case
-    >>> test( f_switch( p_gt( 'a', 2), Case( 3, 45), Case( funcs.add(7,8), 9) , default= -34))
+    >>> test( f_switch( p_gt( 'a', 2), f_switch.Case( 3, 45), f_switch.Case( funcs.add(7,8), 9) , default= -34))
     f_switch(test=p_gt(items=('a', 2)), cases=(Case(value=3, result=45), Case(value=func_any(name='add', args=(7, 8)), result=9)), default=-34)
      ('%case', ('%>', 'a', 2), 3, 45, ('%+', 7, 8), 9, -34)
     '''
+    Case = Case
     test: Expr
     cases: List[ Case ]
     default: Expr =None
-    Case = Case
     def __init__( me, test: Expr, *cases, default: Expr =None):
         _init_item( me, 'test', Expr, test)
         f_cond.__init__( me, default= default, *cases)
@@ -872,7 +938,8 @@ timefilters = dictAttr( (f.__name__, f) for f in _all_subclasses_of( TemporalFil
 
 __all__ = sorted( set(
     [ c.__name__ for c in [
-        Name_Expr, OrderSpec, pipeline, Case, Var
+        pipeline, query, Var
+        #Case OrderSpec Name_Expr   -- dont expose, use op.Spec
         #Var, Param,  ???
         ] +
     list( itertools.chain.from_iterable( _all_subclasses_of( base) for base in [
@@ -932,9 +999,9 @@ if __name__ == '__main__':
         )
     prn(u2)
 
-    c = f_switch( p_gt( 'a', 2), Case( 3, 45), Case( 7, 0) , default= -34)
+    c = f_switch( p_gt( 'a', 2), f_switch.Case( 3, 45), f_switch.Case( 7, 0) , default= -34)
     prn(c)
-    o = orderby( 'a', OrderSpec( 'c', desc=1), b=True, d= dict( desc=True, nulls_last=True) )
+    o = orderby( 'a', orderby.Spec( 'c', desc=1), b=True, d= dict( desc=True, nulls_last=True) )
     prn( o)
     prn( funcs.aggr_row_count())
     prn( funcs.add(3,4))
