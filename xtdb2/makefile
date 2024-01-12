@@ -34,7 +34,7 @@ b2: test_db
 q2:
 	python qs2.py
 try:
-	PYTHONPATH=.. python try2.py $(ARGS)
+	PYTHONPATH=.. python try.py $(ARGS)
 
 test: q2 try
 
