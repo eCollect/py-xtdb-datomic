@@ -200,6 +200,11 @@ class xtdb2_read( BaseClient):
                 ka_response= dict( tj_multi= True),     #XXX if not as_json
                 #if as_json: headers= me._headers_json
                 )
+    #XXX HACK! XXX
+    def sync( me, table =None):
+        if table: q = (Symbol('->'), (Symbol('from'), Keyword( table), [ Symbol('*') ]), (Symbol('limit'), 1))
+        else: q = (Symbol('rel'), [], [])
+        return me.query( q, after_tx= me.latest_submitted_tx(), tx_timeout_s= 55)
 
     def _content( me, r, tj_multi =False, **ka):
         contentype = r.headers.get( 'content-type', '')

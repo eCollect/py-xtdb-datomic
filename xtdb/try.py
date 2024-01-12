@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from xtdb.dbclient import xtdb, log, edn_dumps
-from xtdb2.dbclient import xtdb2
+from xtdb2.dbclient import xtdb2, Symbol
 import datetime
 from pprint import pprint
 
@@ -10,6 +10,11 @@ PORT= os.getenv( 'PORT') or '3001'
 URL = os.getenv( 'XTDB') or f'http://localhost:{PORT}'
 V2 = bool( os.getenv( 'XTDB2'))
 db = xtdb( URL) if not V2 else xtdb2( URL)
+if V2:
+    db.tx = lambda *a,**ka: db.submit_tx( table= 'trytbl', *a,**ka)
+    db.stats = lambda: None
+    _sync = db.sync
+    db.sync = lambda: _sync( 'trytbl')
 
 if 10:
     from faker import Faker
@@ -42,8 +47,15 @@ if 10:
         avg = []
         avgdt = []
         t0 = dt = None
-        for x in range( int( os.getenv('N') or 10+0)):
-            docs = [fake_doc_xt( fake) for _ in range(100)]
+        docs = [fake_doc_xt( fake) for _ in range(100)]
+
+        for x in range( int( os.getenv('N') or 100)):
+            #docs = [fake_doc_xt( fake) for _ in range(100)]
+            for d in docs:
+                xx = f':{x}'
+                d['name'] = d['name'].split(':')[0] + xx
+                d[ db.id_name] = d[ db.id_name].split(':')[0] + xx
+                d['age'] += 1
             #log( db.tx, docs)
             t = time()
             if t0 is not None: dt = t-t0
@@ -52,7 +64,7 @@ if 10:
             print( 11111, x, avgit( avg,t),'ms', dt and avgit( avgdt, dt, True)) #db.stats())
             if x%2:
                 for d in docs:
-                    d['name'] += '-extt'
+                    d['name'] += ':extt'
                 t = time()
                 db.tx( docs)
                 print( 22222, x, avgit( avg,t),'ms') #db.stats())
@@ -78,11 +90,11 @@ if 10:
             db.debug=0
             print( 11111, db.stats())
 
-if 0:
+if 1:
     log( db.latest_completed_tx)
     db.sync()
     log( db.latest_completed_tx)
-    assert 0
+    #assert 0
 
 log( db.status)
 if log( db.stats):
