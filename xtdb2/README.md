@@ -28,8 +28,8 @@ findings:
 * http-encoding is transit+json (and maybe json-LD later?):
   * use transit-python2 fork of abandoned cognitect/transit-python 
     * for whatever reason, list and tuple are both mapped to Array, while List is unmapped?
-  * has own Keyword, Symbol .. etc, no more edn_format
-* NO http/transit documentation, so it’s reverse engineering and MITMproxying between a Clojure Repl (run clojure over deps.edn), and the (docker) xtdb-server
+  * has own Keyword, Symbol.. etc
+* NO http/transit documentation, so it’s reverse engineering and MITMproxying between a Clojure Repl (run clj over deps.edn), and the (docker) xtdb-server
 
 state of this wrapper - jan'24:
 * completely new dbclient, separate from xtdb1
@@ -50,11 +50,11 @@ state of this wrapper - jan'24:
   *	result ts+json is so-called streaming json, i.e. yields a "stream" of space delimited small jsons, not a json-array of those
   	* so, with limit:1 it returns exactly one dict (not list of one dict) ; with limit:2 it returns space-delimited text of dicts - not json-array 
 		*  ''' ["^ ","~:id",1] ["^ ","~:id",12] '''
-  * XXX giving wrong/inexisting after-tx may result in waiting-forever 
+  * XXX giving wrong/inexisting txkey to after_tx/at_tx may result in waiting-forever
+  * XXX needs prodding, with after_tx or at_tx = some known&existing tx_key, e.g. from a submitted transaction or from /status.latest_submitted_tx /status.latest_completed_tx . Otherwise, stays on some unpredictable level in the past
 * POST /tx ↔︎ ts+json 
-	* each tx-op need be dict tagged with #xtdb.tx/<op>
+	* each tx-op need be a dict tagged with #xtdb.tx/<op>
 	* returns a #xtdb/tx-key map : ["~#xtdb/tx-key",["^ ","~:tx-id",4117,"~:system-time",["~#time/instant","2023-06-14T09:05:58.349337Z"]]] 
-	* as in xtdb1, this is "async" i.e. tx-key is returned immediately, but actual processing of requested ops may be later
-  * XXX BUG? - if there's no after-tx specified in some query, no transactions become indexed - returning last (indexed) state (which can be empty)
-  * XXX no "sync" method?
+	* as in xtdb1, this is "async" i.e. tx_key is returned immediately, but actual processing of requested ops may be later
+* XXX no "sync" method? use query-for-anything:after_tx=some-known-tx_key or /status.latest_submitted_tx 
 

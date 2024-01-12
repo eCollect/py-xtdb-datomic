@@ -19,8 +19,8 @@ import os
 PORT= os.getenv( 'PORT') or '3002'
 URL = os.getenv( 'XTDB') or f'http://localhost:{PORT}'
 db = xtdb2( URL)
+log( db.status )
 
-#log( db.status )
 def makeid(): return { db.id_name: uuid.uuid4() }
 def addid( d ):
     d.update( makeid())
@@ -29,11 +29,12 @@ def addid( d ):
 docs = [
     dict( a=1, b='bb'),
     dict( a=2, c= 12.45 ),
-    #dict( a=32, c= 12.4 ),
+    dict( a=132, c= 12.4 ),
     ] #datetime.datetime.now() ) ]
 for d in docs: addid( d)
 txkey= None
-if 10:
+
+if 0:
     txkey = log( db.tx, docs, table= 'atablename' )
 
 from transit.transit_types import TaggedValue
@@ -70,9 +71,7 @@ if 0:
         #qs.funcs.substring( qs.Var( db.id_name), 1,1) ))
     )))
 
-if 0:
-    log( db.query, qs.s(
-        qs.pipeline(
+q_last_tx = qs.pipeline(
             qs.fromtable( db.txs_table, ),
             #qs.aggregate( qs.funcs.aggr_max( sym( db.id_name))), no
             qs.orderby(
@@ -82,8 +81,10 @@ if 0:
                 ),
             qs.limit(1)
             )
-        ))
-if 10:
+
+if 0:
+    log( db.query, qs.s( q_last_tx ))
+if 0:
     log( db.query, qs.s(
         qs.fromtable( 'atablename', 'a', 'b' )
         ))
@@ -146,5 +147,14 @@ if 1:
 rel ( $t [a b])
       {:args {:t [{:a 1, :b 2}, {:a 3, :b 4}]}})
 '''
+
+if 10:
+    log( db.status )
+    log( db.query, qs.s( q_last_tx ))
+    txkey = log( db.tx, docs, table= 'atablename' )
+    log( db.query, qs.s( q_last_tx ))
+    status = log( db.status)
+    log( db.query, qs.s( q_last_tx ))
+    log( db.query, qs.s( q_last_tx ), after_tx= status.latest_submitted_tx) #latest_completed_tx)
 
 # vim:ts=4:sw=4:expandtab

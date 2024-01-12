@@ -9,7 +9,7 @@ import datetime
 from io import StringIO
 from dataclasses import dataclass
 
-from transit.transit_types import TaggedValue, Keyword, Symbol
+from transit.transit_types import TaggedValue, Keyword, Symbol, frozendict
 from transit import write_handlers
 #+few others below
 
@@ -32,7 +32,8 @@ class txkey_handler:
         return { 'tx-id': x.tx_id, 'system-time': x.system_time }
     @staticmethod
     def from_rep( x):
-        return TX_key_id( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
+        return TX_key_id( tx_id= x.tx_id, system_time= x.system_time)   #see below kebab2snake_case
+        #return TX_key_id( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
 
 dt_tag = 'time/instant'
 
@@ -41,6 +42,12 @@ def tagval_repr( me):
 if TaggedValue.__repr__ is not tagval_repr:
     TaggedValue.__repr__ = tagval_repr
 
+def pprint_fix_immmutables():
+    import pprint
+    #see svdt_util/dicts.fix_pprint_dict
+    pprint.PrettyPrinter._dispatch[ frozendict.__repr__] = pprint.PrettyPrinter._dispatch[ dict.__repr__]
+    #also safe_repr?
+pprint_fix_immmutables()
 
 class wMapHandler_auto_keywordize( write_handlers.MapHandler):
     @staticmethod
@@ -79,14 +86,16 @@ def transit_dumps( x):
         ]))
     return value
 
-#auto de-keywordize dicts
+#auto de-keywordize dicts, also kebab2snake_case
 from transit.decoder import Decoder
 if not hasattr( Decoder, '_decode_list'):
     from collections.abc import Mapping
+    frozendict.__getattr__ = frozendict.__getitem__
     def decode_list(self, node, cache, as_map_key):
         r = self._decode_list( node, cache, as_map_key)
         if isinstance( r, Mapping):
-            r = r.__class__( (k.str if isinstance( k, Keyword) else k, v)  for k,v in r.items())
+            r = r.__class__( ((k.str if isinstance( k, Keyword) else k).replace( '-', '_'), v)
+                    for k,v in r.items())
         return r
     Decoder._decode_list = Decoder.decode_list
     Decoder.decode_list = decode_list
@@ -106,7 +115,7 @@ def transit_loads( x, multi =False):
         class rMapHandler:
             @staticmethod
             def from_rep( cmap):    #CmapHandler
-                return transit_types.frozendict(pairs(cmap))
+                return frozendict(pairs(cmap))
         r.register( 'cmap', rMapHandler)
 
     rr = r.read( buf)
@@ -141,10 +150,10 @@ class xtdb2_read( BaseClient):
     txs_table = 'xt/txs'    #special table containing states of all transactions
 
     ##### rpc methods
-    debug = 1
+    debug = 0
     def status( me): return me._get( 'status')
-    def latest_completed_tx( me): return me.status()[ 'latest-completed-tx' ]
-    def latest_submitted_tx( me): return me.status()[ 'latest-submitted-tx' ]
+    def latest_completed_tx( me): return me.status().latest_completed_tx
+    def latest_submitted_tx( me): return me.status().latest_submitted_tx
     def openapi_yaml( me): return me._get( 'openapi.yaml')
 
     def query( me, query, *, args ={},
