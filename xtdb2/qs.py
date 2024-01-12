@@ -154,17 +154,65 @@ all_time = all_time()   #singleton
 
 class _expr: pass
 
+from abc import ABCMeta
+class Meta_dict_of_Expr( ABCMeta):
+    @staticmethod
+    def check_inside( x):
+        non_str_expr = tuple( k for k,v in x.items() if not (isinstance( k, str) and isinstance( v, Expr)))
+        if non_str_expr: print( '?? non_str_expr dict-keys:', *non_str_expr)
+        return not non_str_expr
+    @staticmethod
+    def assert_inside( x):
+        for k,v in x.items():
+            assert isinstance( k, str), k
+            assert isinstance( v, Expr), k
+    @classmethod
+    def __instancecheck__( me, x):
+        return isinstance( x, dict) and me.check_inside( x)
+    @classmethod
+    def __subclasscheck__( me, x):
+        return issubclass( x, dict)
+
+
+class dict_of_Expr( dict, metaclass= Meta_dict_of_Expr):
+    def __init__( me, *a,**ka):
+        super().__init__( *a,**ka)
+        me.__class__.assert_inside( me)
+
+class Meta_list_of_Expr( ABCMeta):
+    @staticmethod
+    def check_inside( x):
+        non_expr = tuple( v for v in x.items() if not isinstance( v, Expr))
+        if non_expr: print( '?? non_expr list-items:', *non_expr)
+        return not non_expr
+    @staticmethod
+    def assert_inside( x):
+        for v in x:
+            assert isinstance( v, Expr), v
+    @classmethod
+    def __instancecheck__( me, x):
+        return isinstance( x, (list,tuple)) and me.check_inside( x)
+    @classmethod
+    def __subclasscheck__( me, x):
+        return issubclass( x, list)
+
+class list_of_Expr( list, metaclass= Meta_list_of_Expr):
+    def __init__( me, *a,**ka):
+        super().__init__( *a,**ka)
+        me.__class__.assert_inside( me)
+
 Expr = Union[ #None,    no None plz
             int, float, #decimal ?
             str, bool,
             #TODO Temporal, TemporalAmount,   #ObjectExpr ?? datetime / duration ??
-            #TODO List[ Forward( 'Expr') ],             #VectorExpr
             #set[ Expr ] ?              #SetExpr
-            #TODO Dict[ str, Forward( 'Expr') ],        #MapExpr -> {:str expr, ..}     XXX list-of-dicts is used in relation
+            list_of_Expr,   #List[ Forward( 'Expr') ],             #VectorExpr
+            dict_of_Expr,   #Dict[ str, Forward( 'Expr') ],        #MapExpr -> {:str expr, ..}
+            # list-of-dicts is used in relation
             Param,                      #-> $symbol
             Var,                        #-> symbol
             Func,
-            _expr,  #subquery exists, pull,
+            _expr,  #subquery, exists, pull,
             ]
 Expr_or_None = Union[ Expr, None ]
 
@@ -269,19 +317,18 @@ class relation( Source, Unifyable):
     >>> test( relation( 'myrel', 'a', 'b'))
     relation(expr='myrel', binds=(Name_Expr(name='a', expr=None), Name_Expr(name='b', expr=None)))
      ('%rel', 'myrel', ['%a', '%b'])
-
-    #>>> test( relation( [ dict(a=1, b=2), dict( a=3,b=4)] ))
-    #relation(expr=({'a': 1, 'b': 2}, {'a': 3, 'b': 4}], binds=())
-    # ('%rel', [{:a 1, :b 2}, {:a 3, :b 4}])
+    >>> test( relation( [ dict(a=1, b=2), dict( a=3,b=4)] ))
+    relation(expr=[{'a': 1, 'b': 2}, {'a': 3, 'b': 4}], binds=())
+     ('%rel', [{'a': 1, 'b': 2}, {'a': 3, 'b': 4}])
     '''
     expr: Expr
     binds: List[ BindSpec ]
     Spec = Bind = BindSpec
     def __init__( me, expr, *a_binds, binds= (), **ka_binds):
         _init_item( me, 'expr', Expr, expr)
-        _init_convert_items( me, 'binds', BindSpec, a_binds, binds, ka_binds)
+        _init_convert_items( me, 'binds', BindSpec, a_binds, binds, ka_binds, allow_empty= True)
     def s( me, **kaignore):
-        return s_sym( 'rel', me.expr, me.binds )
+        return s_sym( 'rel', me.expr, *([me.binds] if me.binds else()))
 rel = relation
 
 ArgSpec = Name_Expr
