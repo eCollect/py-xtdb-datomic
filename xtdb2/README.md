@@ -50,6 +50,7 @@ state of this wrapper - jan'24:
   *	result ts+json is so-called streaming json, i.e. yields a "stream" of space delimited small jsons, not a json-array of those
   	* so, with limit:1 it returns exactly one dict (not list of one dict) ; with limit:2 it returns space-delimited text of dicts - not json-array 
 		*  ''' ["^ ","~:id",1] ["^ ","~:id",12] '''
+  * has explain=bool parameter, returning planned-query, actual data not touched
   * XXX giving wrong/inexisting txkey to after_tx/at_tx may result in waiting-forever
   * XXX needs prodding, with after_tx or at_tx = some known&existing tx_key, e.g. from a submitted transaction or from /status.latest_submitted_tx /status.latest_completed_tx . Otherwise, stays on some unpredictable level in the past
 * POST /tx ↔︎ ts+json 
@@ -57,4 +58,13 @@ state of this wrapper - jan'24:
 	* returns a #xtdb/tx-key map : ["~#xtdb/tx-key",["^ ","~:tx-id",4117,"~:system-time",["~#time/instant","2023-06-14T09:05:58.349337Z"]]] 
 	* as in xtdb1, this is "async" i.e. tx_key is returned immediately, but actual processing of requested ops may be later
 * XXX no "sync" method? use query-for-anything:after_tx=some-known-tx_key or /status.latest_submitted_tx 
+
+TODO:
++ xtql query-builder - qs.py - ok+doctests 
+	- sym/kw/Var/Param/Column.. all these ?
++ http-rest-api client, +transit-json - dbclient.py - ok+mock-tests
+	- over +json-ld - (not yet)
+	- multinode etc non-local install?
+- overall test, from query-builder to server-side, using query with xplain=True
+- other overall tests, for real
 
