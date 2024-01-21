@@ -45,4 +45,11 @@ PYPACKS = $(VIRTUAL_ENV)/lib/python3*/site-packages
 tags ctags:
 	ctags $(EXCLUDES:%=--exclude="%") --links=no -R . $(PYPACKS)/edn_format $(PYPACKS)/transit
 
+PROFILER = -m cProfile -o _profile
+try:
+	PYTHONPATH=. $(_ENVVARS) $(ENVVARS) python $(PROFILER) xtdb/try.py
+
+try2: _ENVVARS= XTDB2=1 PORT=3002
+try2: try
+
 # vim:ts=4:sw=4:noexpandtab

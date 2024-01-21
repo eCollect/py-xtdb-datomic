@@ -14,7 +14,10 @@ if V2:
     db.tx = lambda *a,**ka: db.submit_tx( table= 'trytbl', *a,**ka)
     db.stats = lambda: None
     _sync = db.sync
-    db.sync = lambda: _sync( 'trytbl')
+    #db.sync = lambda: _sync( 'trytbl')
+    #db._cache_now = {}
+    def q_tx_first_n( n =125):  #125-126
+        return db.sync( table= 'trytbl', n=n) #db.txs_table, n=n)
 
 if 10:
     from faker import Faker
@@ -22,12 +25,17 @@ if 10:
     fake = Faker()
 
     fakefields = 'name city state address email'.split()
+    _models = 'bmw uno bus'.split()
     def fake_doc( fake, extra_fields ={}):
         return dict(
             [(k,getattr( fake, k)()) for k in fakefields ] + [
              (k,f( fake)) for k,f in extra_fields.items() ],
             date= fake.date_time_between( start_date='-15yr', end_date='now').astimezone().isoformat(),
             age = fake.random_number(),
+            #aliases = [ str(fake.uuid4()) for x in range(95) ],
+            cars = [ dict( vin= fake.vin(), model= _models[ x % len(_models) ], mileage= fake.random_number(), plate= fake.license_plate()) for x in range(177) ],
+            **dict( ('x'+str(i), i) for i in range(2000)),
+            **{ 'айде': 'беее' } #non-ascii
             )
 
     def fake_doc_xt( fake):
@@ -47,11 +55,15 @@ if 10:
         avg = []
         avgdt = []
         t0 = dt = None
-        docs = [fake_doc_xt( fake) for _ in range(100)]
+        docs = [fake_doc_xt( fake) for _ in range(10+0)]
+        # from xtdb import fail
+        # docs = fail.success if 0 else fail.fail
 
         for x in range( int( os.getenv('N') or 100)):
             #docs = [fake_doc_xt( fake) for _ in range(100)]
-            for d in docs:
+          if 0:
+            if 10:
+             for d in docs:
                 xx = f':{x}'
                 d['name'] = d['name'].split(':')[0] + xx
                 d[ db.id_name] = d[ db.id_name].split(':')[0] + xx
@@ -60,16 +72,22 @@ if 10:
             t = time()
             if t0 is not None: dt = t-t0
             t0 = t
-            db.tx( docs)
+            #db.debug = 1
+            if 10:
+                db.tx( docs)
             print( 11111, x, avgit( avg,t),'ms', dt and avgit( avgdt, dt, True)) #db.stats())
-            if x%2:
+            if 0 and x%2:
                 for d in docs:
                     d['name'] += ':extt'
                 t = time()
                 db.tx( docs)
-                print( 22222, x, avgit( avg,t),'ms') #db.stats())
+                print( 22222, x, avgit( avg,t),'ms')
+          if 10: # and not x%4:
+                t = time()
+                q_tx_first_n(1000)
+                print( 33333, x, avgit( avg,t),'ms')
 
-    if 0:
+    if 0:   #valid_time +-
         last_tx = db.latest_completed_tx()
         print( '----', last_tx)
         last_tx_time = last_tx['txTime']
@@ -90,7 +108,7 @@ if 10:
             db.debug=0
             print( 11111, db.stats())
 
-if 1:
+if 10:
     log( db.latest_completed_tx)
     db.sync()
     log( db.latest_completed_tx)

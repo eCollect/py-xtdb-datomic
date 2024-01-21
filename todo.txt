@@ -11,8 +11,15 @@
 * xtdb/v2: 
   + query-builder
   + dbclient 
-  - rework rpc/dbclients: convert sym/kw/immutables between independent and whatever-specific?
-  - transit+json : source-wise, seems slow. try speed up ?
+  - rework rpc/dbclients: independent sym/kw/immutables or per-dbclient-specific
+  - transit+json : 
+    ~ source-wise, seems slow. try speed up ?
+      + few changes, some more impactful than others. broken caching
+    + fix caching
+    + fix UTF-8-encoding
+    + fix json-stream:decode-piece-by-piece/restarting-cache
+    + incremental json a.k.a "streaming-json" whitespace-delimited-multiple-top-values
+    - test speed+size with/without cache X with/without gzip, for repeating things, and for non-repeating
 
 ###########
 
