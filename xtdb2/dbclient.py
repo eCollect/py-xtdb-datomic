@@ -1,3 +1,5 @@
+X_decoder_Keyword = 1
+
 from base.rpc_json_http import BaseClient, log #dict_without_None
 
 ####### transit-json stuff
@@ -10,6 +12,8 @@ from io import StringIO
 from dataclasses import dataclass
 
 from transit.transit_types import TaggedValue, Keyword, Symbol, frozendict
+from transit import transit_types
+X_keysym = getattr( transit_types, 'X_keysym', 0)
 from transit import write_handlers
 #+few others below
 
@@ -49,20 +53,38 @@ def pprint_fix_immmutables():
     #also safe_repr?
 pprint_fix_immmutables()
 
-class wMapHandler_auto_keywordize( write_handlers.MapHandler):
+if not getattr( write_handlers, 'X_wHandler', 0):
+ class wMapHandler_auto_keywordize( write_handlers.MapHandler):
     @staticmethod
     def rep(m):
+        return { Keyword( k) if k.__class__ is not Keyword else k:v
+                    for k,v in m.items() }
         return dict( (Keyword( k) if not isinstance( k, Keyword) else k,v)
                 for k,v in m.items())
-class wDatetimeHandler( write_handlers.VerboseDateTimeHandler):
+        #return dict( (Keyword( k) if k.__class__ is not Keyword else k,v)
+ class wDatetimeHandler( write_handlers.VerboseDateTimeHandler):
     @staticmethod
     def tag(_): return dt_tag
 
-class wListHandler:
+ class wListHandler:
     @staticmethod
     def tag(_): return 'list'
-    @staticmethod
-    def rep(s): return list(s)
+    rep = list
+
+else:
+    wHandler = write_handlers.wHandler
+    wMapHandler_auto_keywordize = wHandler.copy( write_handlers.MapHandler,
+        rep= lambda m: {
+                    (Keyword( k) if k.__class__ is not Keyword else k):v
+                    for k,v in m.items() }
+        )
+    wDatetimeHandler = wHandler.copy( write_handlers.VerboseDateTimeHandler,
+        tag= dt_tag
+        )
+    wListHandler = wHandler( tag= 'list',
+        rep= list,
+        str= write_handlers.rep_None
+        )
 
 def transit_dumps( x):
     from transit.writer import Writer
@@ -84,42 +106,83 @@ def transit_dumps( x):
         'out: '+ value,
         'und:'+ str( transit_loads( value)),
         ]))
+    value = value.encode( 'utf8')
     return value
 
 #auto de-keywordize dicts, also kebab2snake_case
 from transit.decoder import Decoder
-if not hasattr( Decoder, '_decode_list'):
+from transit import decoder
+X_mapkeystr = getattr( decoder, 'X_mapkeystr', 0)
+frozendict.__getattr__ = frozendict.__getitem__
+
+if X_mapkeystr:
+    class rh_mapkeystr:
+        @staticmethod
+        def from_rep(v):
+            return v.replace( '-', '_')
+    decoder.default_options['decoders']['mapkeystr'] = rh_mapkeystr
+
+elif not hasattr( Decoder, '_decode_list'):
     from collections.abc import Mapping
-    frozendict.__getattr__ = frozendict.__getitem__
     def decode_list(self, node, cache, as_map_key):
         r = self._decode_list( node, cache, as_map_key)
         if isinstance( r, Mapping):
-            r = r.__class__( ((k.str if isinstance( k, Keyword) else k).replace( '-', '_'), v)
+            if X_decoder_Keyword and X_keysym:
+                r = r.__class__( ((k.__str__() if k.__class__ is Keyword else k).replace( '-', '_'), v)
+                #r = r.__class__( ((str(k) if k.__class__ is Keyword else k).replace( '-', '_'), v)
+                    for k,v in r.items())
+            elif X_decoder_Keyword:
+                r = r.__class__( ((k.str if k.__class__ is Keyword else k).replace( '-', '_'), v)
+                    for k,v in r.items())
+            else:
+                r = r.__class__( ((k.str if isinstance( k, Keyword) else k).replace( '-', '_'), v)
                     for k,v in r.items())
         return r
     Decoder._decode_list = Decoder.decode_list
     Decoder.decode_list = decode_list
 
-def transit_loads( x, multi =False):
+ijson=10
+if ijson:
+    import ijson        # https://pypi.org/project/ijson/
+    print( 'ijson:', ijson.backend)
+    rdr = Decoder()
+    def readeach( input, multi =True):
+        for o in ijson.items( input, prefix= '', multiple_values= multi):
+            yield rdr.decode( o)
+else:
     from transit.reader import Reader
+    rdr = Reader( protocol= 'json')
+
+from transit.read_handlers import DateHandler
+rdr.register( dt_tag, DateHandler)
+rdr.register( txkey_handler._tag, txkey_handler)
+if 0:
+    class rMapHandler:
+        @staticmethod
+        def from_rep( cmap):    #CmapHandler
+            return frozendict(pairs(cmap))
+    rdr.register( 'cmap', rMapHandler)
+
+
+def transit_loads( x, multi =False):
+    if not x: return
+    if ijson:
+        r = list( readeach( x, multi= multi))
+        if not multi: return r[0]
+        return r
+
     #x = x.decode( 'utf8')      #hope it's utf8 XXX
-    if multi:
-        x = '[' + x.replace( '] [', '],[') + ']'    #jsonize a space-delimited stream of jsons XXX
-    buf = StringIO( x)
-    r = Reader( protocol= 'json')
-    from transit.read_handlers import DateHandler
-    r.register( dt_tag, DateHandler)
-    r.register( txkey_handler._tag, txkey_handler)
+    #if 0: return list( rdr.readeach( StringIO( x)))   #hangs forever XXX
 
-    if 0:
-        class rMapHandler:
-            @staticmethod
-            def from_rep( cmap):    #CmapHandler
-                return frozendict(pairs(cmap))
-        r.register( 'cmap', rMapHandler)
+    if multi: #naively jsonize a space-delimited stream of jsons XXX
+        xx = x.split( '] [')    #try.. many lists?
+        if len(xx) < 2: multi = False   #nah, single
+        xx = xx[:1] + ['['+a for a in xx[1:]]
+        xx = [a+']' for a in xx[:-1]] + xx[-1:]
+    else: xx = [ x ]
 
-    rr = r.read( buf)
-    #rr = list( r.readeach( buf))   #hangs forever
+    rr = [ rdr.read( StringIO( a)) for a in xx ]
+    if not multi: return rr[0]
     return rr
 
 #sym_pipeline = Symbol( '->')
@@ -201,8 +264,8 @@ class xtdb2_read( BaseClient):
                 #if as_json: headers= me._headers_json
                 )
     #XXX HACK! XXX
-    def sync( me, table =None):
-        if table: q = (Symbol('->'), (Symbol('from'), Keyword( table), [ Symbol('*') ]), (Symbol('limit'), 1))
+    def sync( me, table =None, n =1):
+        if table: q = (Symbol('->'), (Symbol('from'), Keyword( table), [ Symbol('*') ]), (Symbol('limit'), n))
         else: q = (Symbol('rel'), [], [])
         return me.query( q, after_tx= me.latest_submitted_tx(), tx_timeout_s= 55)
 

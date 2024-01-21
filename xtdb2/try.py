@@ -30,6 +30,8 @@ docs = [
     dict( a=1, b='bb'),
     dict( a=2, c= 12.45 ),
     dict( a=132, c= 12.4 ),
+    dict( avalue=3, b='явер', ),
+    dict( akey=5, **{'ключ': 14}),
     ] #datetime.datetime.now() ) ]
 for d in docs: addid( d)
 txkey= None
@@ -138,7 +140,7 @@ if 0:
                 qs.where( qs.funcs.eq( qs.Var('a'), 9 )),
             )), after_tx = txkey) #, explain=1 )
 
-if 1:
+if 0:
     log( db.query, qs.s(
         qs.relation( qs.Param('t'), 'a','b'
         )), args= dict( t= [ dict(a=1, b=2), dict( a=3, b=4) ])

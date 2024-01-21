@@ -1,2 +1,3 @@
 #transit-python
 transit-python2
+ijson
