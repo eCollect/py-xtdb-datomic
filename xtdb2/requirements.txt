@@ -1,3 +1,4 @@
 #transit-python
-transit-python2
+#transit-python2
+transit-python3 @ git+https://github.com/svilendobrev/transit-python3
 ijson
