@@ -41,6 +41,12 @@ def sym( x): return '%'+x
 def kw( x):  return ':'+x
 sym_wild = sym( '*')
 
+def setup( a_sym, a_kw):
+    global sym, kw, sym_wild
+    sym = a_sym
+    kw = a_kw
+    sym_wild = sym( '*')
+
 def s( x, *, name_as_sym =False):
     if isinstance( x, (list,tuple)):
         return [ s( i, name_as_sym= name_as_sym) for i in x ]

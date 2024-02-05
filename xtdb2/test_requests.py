@@ -84,6 +84,8 @@ class Posts(unittest.TestCase):
 
     def assert_call_data_eq( me, data):
         me.fake.assert_called_with( URLquery, data= data.encode('utf8'), headers= HEADERS )
+    def assert_call_tx_eq( me, data):
+        me.fake.assert_called_with( URLsubmit_tx, data= data.encode('utf8'), headers= HEADERS )
 
     def test_query( me):
         me.fake.return_value = 'f'
@@ -134,8 +136,8 @@ class Posts(unittest.TestCase):
         with me.assertRaisesRegex( TypeError, 'myarg'):
             query( q_xtql, myarg=4 )
 
-if 0:
-    def test_query_dict_inputs(me):
+    if 0:
+      def test_query_dict_inputs(me):
         me.fake.return_value = 'i'
         me.db._response = lambda x:x
         query = me.db.query
@@ -157,6 +159,100 @@ if 0:
         with me.assertRaisesRegex( AssertionError, 'arg count mismatch'):
             query( q, 12)
 
+    def test_tx( me):
+        me.fake.return_value = 'f'
+        me.db._response = lambda x,**ka: x
+        tx = me.db.tx
+        def autoid( *docs):
+            for i,d in enumerate( docs):
+                if isinstance( d, dict):
+                    d[ me.db.id_name ] = 100+i
+            return list( docs)
+
+        docs = autoid(
+            dict( a=1, b='bb'),
+            dict( a=2, c= 12.45 ),
+            dict( a=132, c= 12.4, d=True ),
+            dict( avalue=3, b='явер', ),
+            dict( akey=5, **{'ключ': 14}),
+            ) #datetime.datetime.now() ) ]
+
+        for name,doc1 in { 'one': docs[0], 'list of one': docs[:1] }.items():
+          with me.subTest( name+' flat dict, text + int'):
+            tx( doc1, table= 'atablename')
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",[["~#xtdb.tx/put",["^ ","~:docs",["~#list",[["^ ","~:a",1,"~:b","bb","~:xt/id",100]]],"~:table-name","~:atablename"]]]]'
+                )
+
+        with me.subTest( 'multiple flat dicts, texts + numbers'):
+            tx( docs, table= 'atablename')
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",[["~#xtdb.tx/put",["^ ","~:docs",["~#list",[["^ ","~:a",1,"~:b","bb","~:xt/id",100],["^ ","~:a",2,"~:c",12.45,"^4",101],["^ ","~:a",132,"~:c",12.4,"~:d",true,"^4",102],["^ ","~:avalue",3,"~:b","явер","^4",103],["^ ","~:akey",5,"~:ключ",14,"^4",104]]],"~:table-name","~:atablename"]]]]'
+                )
+
+        q1 = (Symbol('from'), Keyword('nosuchtbl'), [Symbol('a')])
+
+        from xtdb2 import qs
+        qs.setup( Symbol, Keyword)
+        q1_qs = qs.s( qs.fromtable( 'nosuchtbl', 'a' ))
+        assert q1_qs == q1
+
+        with me.subTest( 'assert-exists'):
+            tx(
+                me.db.make_tx_assert_exists( q1))
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",['
+                '["~#xtdb.tx/xtql",["~:assert-exists",["~#list",["~$from","~:nosuchtbl",["~$a"]]]]]'
+                ']]'
+                )
+
+        #for name,q in dict( raw= q1, qs= q1_qs).items():
+        with me.subTest( 'assert-not-exists'):
+            tx(
+                me.db.make_tx_assert_notexists( q1))
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",['
+                '["~#xtdb.tx/xtql",["~:assert-not-exists",["~#list",["~$from","~:nosuchtbl",["~$a"]]]]]'
+                ']]'
+                )
+        with me.subTest( 'assert-not-exists + put-dict-auto'):
+            tx( autoid(
+                me.db.make_tx_assert_notexists( q1),
+                dict( a=7, b='x'),
+                ), table= 'atablename')
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",['
+                '["~#xtdb.tx/put",["^ ","~:docs",["~#list",[["^ ","~:a",7,"~:b","x","~:xt/id",101]]],"~:table-name","~:atablename"]],'
+                '["~#xtdb.tx/xtql",["~:assert-not-exists",["^3",["~$from","~:nosuchtbl",["~$a"]]]]]'
+                ']]'
+                )
+
+        with me.subTest( 'delete-by-ids'):
+            tx(
+                me.db.make_tx_delete( 55, table='atablename'))
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",['
+                '["~#xtdb.tx/delete",["^ ","~:doc-ids",["~#list",[55]],"~:table-name","~:atablename"]]'
+                ']]'
+                )
+
+        with me.subTest( 'erase-by-ids'):
+            tx(
+                me.db.make_tx_erase( 55, table='atablename'))
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",['
+                '["~#xtdb.tx/erase",["^ ","~:doc-ids",["~#list",[55]],"~:table-name","~:atablename"]]'
+                ']]'
+                )
+
+        with me.subTest( 'insert-by-query'):
+            tx(
+                me.db.make_tx_insert_by_query( q1, table='atablename'))
+            me.assert_call_tx_eq(
+                '["^ ","~:tx-ops",['
+                '["~#xtdb.tx/xtql",["~:insert-into","~:atablename",["~#list",["~$from","~:nosuchtbl",["~$a"]]]]]'
+                ']]'
+                )
 
 if __name__ == '__main__':
     unittest.main() #verbosity=2)
