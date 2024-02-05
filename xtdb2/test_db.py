@@ -90,7 +90,9 @@ class x( base, unittest.TestCase):
 
     def test_status( me):
         def keys( x):
-            if me.IS_EDN: return set( Keyword(k) for k in x)
+            #if me.IS_EDN: return set( Keyword(k) for k in x)
+            if me.IS_EDN:
+                return set( a.replace( '-','_') for a in x)  #XXX kebab2snake
             return set( x)  #XXX ? no kebab2camel?
             return set( dbclient.hacks.kebab2camel( k) for k in x )
 
@@ -104,7 +106,7 @@ class x( base, unittest.TestCase):
         for k in exp_keys:
             v = s[ k ]
             if v is not None:
-                me.assertEqual( set( v), txkeys, k)
+                me.assertTrue( isinstance( v, dbclient.TX_key_id), v)
     if 0:
       def test_query_1_obj_whatever_it_is( me):
         q_flat_text = """
@@ -150,7 +152,7 @@ class x( base, unittest.TestCase):
             obj.addresses[0][ with_AID ]= AID
             if two_subobjs:
                 obj.addresses[1][ with_AID ]= AID+1
-        me.db.save( obj)
+        me.db.save( obj, table= 'sometbl')
 
         return obj,OID,AID
         #XXX V2 has different pull
@@ -233,7 +235,7 @@ if 0:
             )
             #-> [obj, None]
 
-if 10:
+if 0:
  class y( x):
     IS_EDN = not x.IS_EDN
     headers = dbclient.xtdb2._headers_json

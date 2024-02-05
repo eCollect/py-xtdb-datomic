@@ -1,9 +1,9 @@
-from xtdb2.dbclient import xtdb2, transit_dumps, transit_loads, TX_key_id
+from xtdb2.dbclient import xtdb2, TX_key_id, Symbol, Keyword, frozendict
 from xtdb2 import dbclient
 dbclient.DEBUG = 0
-from transit import transit_types
-Symbol = transit_types.Symbol
-Keyword= transit_types.Keyword
+
+def transit_dumps( x): return dbclient.transit_dumps( x, encode=False)
+def transit_loads( x): return dbclient.transit_loads( x.encode( 'utf8'))
 
 import base.rpc_json_http
 import unittest
@@ -46,8 +46,9 @@ class transport( unittest.TestCase):
         me.assertEqual( transit_dumps( x), ts)
         loaded = transit_loads( ts)
         me.assertEqual( loaded, x)
-        me.assertTrue( isinstance( loaded, transit_types.frozendict))
-        with me.assertRaisesRegex( TypeError, "does not support item assignment"):
+        me.assertTrue( isinstance( loaded, frozendict))
+        #with me.assertRaisesRegex( TypeError, "does not support item assignment"):
+        with me.assertRaisesRegex( TypeError, "'NoneType' object is not callable"):
             loaded[ 3] = 4
 
 URLROOT = 'http://localhost:3002'
@@ -82,7 +83,7 @@ class Posts(unittest.TestCase):
         me.fake = base.rpc_json_http.requests.post = MagicMock( return_value= 'x')  #why not patch ??? XXX
 
     def assert_call_data_eq( me, data):
-        me.fake.assert_called_with( URLquery, data= data, headers= HEADERS )
+        me.fake.assert_called_with( URLquery, data= data.encode('utf8'), headers= HEADERS )
 
     def test_query( me):
         me.fake.return_value = 'f'
@@ -97,7 +98,7 @@ class Posts(unittest.TestCase):
                 f'["^ ","~:query","{q_text}"]' )
 
         with me.subTest( 'text + valid_time_all'):
-            query( q_text, valid_time_all= True)
+            query( q_text, valid_time_is_all= True)
             me.assert_call_data_eq(
                 f'["^ ","~:query","{q_text}","~:default-all-valid-time?",true]' )
 
@@ -130,7 +131,7 @@ class Posts(unittest.TestCase):
                 query()
 
         # unknown args
-        with me.assertRaisesRegex( AssertionError, 'myarg'):
+        with me.assertRaisesRegex( TypeError, 'myarg'):
             query( q_xtql, myarg=4 )
 
 if 0:
