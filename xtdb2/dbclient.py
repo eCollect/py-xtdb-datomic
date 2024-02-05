@@ -1,20 +1,32 @@
-X_decoder_Keyword = 1
-
 from base.rpc_json_http import BaseClient, log #dict_without_None
 
 ####### transit-json stuff
 
-DEBUG = 0
+DEBUG = 10
 
-import pprint
+from pprint import pformat
 import datetime
 from io import StringIO
 from dataclasses import dataclass
 
-from transit.transit_types import TaggedValue, Keyword, Symbol, frozendict
-from transit import transit_types
-X_keysym = getattr( transit_types, 'X_keysym', 0)
-from transit import write_handlers
+NEWTT =1
+if not NEWTT:
+    from transit.transit_types import TaggedValue, Keyword, Symbol, frozendict
+    from transit import write_handlers
+    from transit.writer import JsonMarshaler
+
+    from transit import decoder, read_handlers
+else:
+    from transit.encode import Encoder,  TaggedValue, Keyword, Symbol, frozendict
+    from transit import encode as write_handlers # :/
+    from transit import decode as decoder
+    read_handlers = decoder
+
+    def qs2tt( qs):     #call over .qs module before building any queries
+        qs.sym = Symbol
+        qs.kw = Keyword
+        qs.sym_wild = Symbol( '*')
+
 #+few others below
 
 if 0:
@@ -36,13 +48,15 @@ class txkey_handler:
         return { 'tx-id': x.tx_id, 'system-time': x.system_time }
     @staticmethod
     def from_rep( x):
-        return TX_key_id( tx_id= x.tx_id, system_time= x.system_time)   #see below kebab2snake_case
-        #return TX_key_id( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
+        #if rh_Mapkeystr_kebab2snake.from_rep == rh_Mapkeystr_kebab2snake.from_rep_off:
+        #    return TX_key_id( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
+        return TX_key_id( tx_id= x.tx_id, system_time= x.system_time)   #see rh_Mapkeystr_kebab2snake
+    tag_len_1 = tag_str = None
 
 dt_tag = 'time/instant'
 
 def tagval_repr( me):
-    return me.tag+'::::\n   '+pprint.pformat( me.rep).replace('\n','\n   ')
+    return me.tag+'::::\n   '+pformat( me.rep).replace('\n','\n   ')
 if TaggedValue.__repr__ is not tagval_repr:
     TaggedValue.__repr__ = tagval_repr
 
@@ -53,15 +67,13 @@ def pprint_fix_immmutables():
     #also safe_repr?
 pprint_fix_immmutables()
 
-if not getattr( write_handlers, 'X_wHandler', 0):
+if not getattr( write_handlers, 'wHandler', 0):
  class wMapHandler_auto_keywordize( write_handlers.MapHandler):
     @staticmethod
-    def rep(m):
-        return { Keyword( k) if k.__class__ is not Keyword else k:v
+    def rep(m): #dictcomp is 2x faster then dict( genexpr..)
+        return {
+                    (Keyword( k) if k.__class__ is not Keyword else k):v
                     for k,v in m.items() }
-        return dict( (Keyword( k) if not isinstance( k, Keyword) else k,v)
-                for k,v in m.items())
-        #return dict( (Keyword( k) if k.__class__ is not Keyword else k,v)
  class wDatetimeHandler( write_handlers.VerboseDateTimeHandler):
     @staticmethod
     def tag(_): return dt_tag
@@ -86,66 +98,79 @@ else:
         str= write_handlers.rep_None
         )
 
-def transit_dumps( x):
-    from transit.writer import Writer
-    buf = StringIO()
-    w = Writer( buf, 'json' )
-    w.register( dict, wMapHandler_auto_keywordize )
-    w.register( datetime.datetime, wDatetimeHandler)
-    if 1:
-        #w.register( List, wListHandler)     #tuple==list==array/vector
+if not NEWTT:
+    wrt = JsonMarshaler( None)
+else:
+    wrt = Encoder()
+    import json
+wrt.register( dict, wMapHandler_auto_keywordize)
+wrt.register( datetime.datetime, wDatetimeHandler)
+#this is needed for query, but not for tx
+wrt.register( tuple, wListHandler)     #tuple -> xtdb/list i.e. sequence ; list -> vector
+wrt.register( TX_key_id, txkey_handler)
+
+
+def transit_dumps( x, encode =True):
+    if 0:
+      buf = StringIO()
+      if 0*'old-no-reset':
+        from transit.writer import Writer
+        w = Writer( buf, 'json' )
+        w.register( dict, wMapHandler_auto_keywordize )
+        w.register( datetime.datetime, wDatetimeHandler)
         w.register( tuple, wListHandler)     #tuple -> xtdb/list i.e. sequence ; list -> vector
+        w.register( TX_key_id, txkey_handler)
+        w.write( x )
+      else:
+        wrt.reset( buf)
+        wrt.marshal_top( x )
+      value = buf.getvalue()
 
-    w.register( TX_key_id, txkey_handler)
+    else:
+        value = wrt.marshal_top( x )
+        json_cfg = dict(
+            ensure_ascii= False,      #nonascii -> utf8, not \u430
+            separators= (',', ':'),  #no whitespaces
+            )
+        value = json.dumps( value, **json_cfg)
 
-    w.write( x )
-    value = buf.getvalue()
     if DEBUG:
+        if 0:
+            class dct( dict): pass
+            dct.__getattr__ = dct.__getitem__
+            Decoder.map_factory = dct #staticmethod( lambda x: x )
+            rh_Mapkeystr_kebab2snake.from_rep = rh_Mapkeystr_kebab2snake.from_rep_off
+        vv = transit_loads( value)
         print( '\n  '.join( ['tj-dump',
-        'in: '+ str(x),
+        'in: '+ pformat(x),
         'out: '+ value,
-        'und:'+ str( transit_loads( value)),
+        'und:'+ pformat( vv),
         ]))
-    value = value.encode( 'utf8')
+        #assert vv == x  #kebab2snake_case err, [] != ()
+    if encode:
+        value = value.encode( 'utf8')
     return value
 
-#auto de-keywordize dicts, also kebab2snake_case
-from transit.decoder import Decoder
-from transit import decoder
-X_mapkeystr = getattr( decoder, 'X_mapkeystr', 0)
+#dict into dictattr
 frozendict.__getattr__ = frozendict.__getitem__
 
-if X_mapkeystr:
-    class rh_mapkeystr:
+#auto de-keywordize dicts, also kebab2snake_case
+#if getattr( decoder, 'X_mapkeystr', 0)
+if 1: #always de-keywordize any keyword, no need of X_mapkeystr
+    class rh_Mapkeystr_kebab2snake:
         @staticmethod
-        def from_rep(v):
-            return v.replace( '-', '_')
-    decoder.default_options['decoders']['mapkeystr'] = rh_mapkeystr
+        def from_rep(v): return v.replace( '-', '_')
+        @staticmethod
+        def from_rep_off(v): return v
+    #decoder.default_options['decoders'][ decoder._X_mapkeystr ] = rh_Mapkeystr_kebab2snake
+    decoder.default_options['decoders'][':'] = rh_Mapkeystr_kebab2snake
 
-elif not hasattr( Decoder, '_decode_list'):
-    from collections.abc import Mapping
-    def decode_list(self, node, cache, as_map_key):
-        r = self._decode_list( node, cache, as_map_key)
-        if isinstance( r, Mapping):
-            if X_decoder_Keyword and X_keysym:
-                r = r.__class__( ((k.__str__() if k.__class__ is Keyword else k).replace( '-', '_'), v)
-                #r = r.__class__( ((str(k) if k.__class__ is Keyword else k).replace( '-', '_'), v)
-                    for k,v in r.items())
-            elif X_decoder_Keyword:
-                r = r.__class__( ((k.str if k.__class__ is Keyword else k).replace( '-', '_'), v)
-                    for k,v in r.items())
-            else:
-                r = r.__class__( ((k.str if isinstance( k, Keyword) else k).replace( '-', '_'), v)
-                    for k,v in r.items())
-        return r
-    Decoder._decode_list = Decoder.decode_list
-    Decoder.decode_list = decode_list
 
 ijson=10
-if ijson:
+if NEWTT and ijson:
     import ijson        # https://pypi.org/project/ijson/
     print( 'ijson:', ijson.backend)
-    rdr = Decoder()
+    rdr = decoder.Decoder()
     def readeach( input, multi =True):
         for o in ijson.items( input, prefix= '', multiple_values= multi):
             yield rdr.decode( o)
@@ -153,15 +178,8 @@ else:
     from transit.reader import Reader
     rdr = Reader( protocol= 'json')
 
-from transit.read_handlers import DateHandler
-rdr.register( dt_tag, DateHandler)
+rdr.register( dt_tag, read_handlers.DateHandler)
 rdr.register( txkey_handler._tag, txkey_handler)
-if 0:
-    class rMapHandler:
-        @staticmethod
-        def from_rep( cmap):    #CmapHandler
-            return frozendict(pairs(cmap))
-    rdr.register( 'cmap', rMapHandler)
 
 
 def transit_loads( x, multi =False):
@@ -184,6 +202,8 @@ def transit_loads( x, multi =False):
     rr = [ rdr.read( StringIO( a)) for a in xx ]
     if not multi: return rr[0]
     return rr
+
+########### eo transit-stuff
 
 #sym_pipeline = Symbol( '->')
 
@@ -264,10 +284,10 @@ class xtdb2_read( BaseClient):
                 #if as_json: headers= me._headers_json
                 )
     #XXX HACK! XXX
-    def sync( me, table =None, n =1):
+    def sync( me, table =None, n =1, after_tx =None):
         if table: q = (Symbol('->'), (Symbol('from'), Keyword( table), [ Symbol('*') ]), (Symbol('limit'), n))
         else: q = (Symbol('rel'), [], [])
-        return me.query( q, after_tx= me.latest_submitted_tx(), tx_timeout_s= 55)
+        return me.query( q, after_tx= after_tx or me.latest_submitted_tx(), tx_timeout_s= 55)
 
     def _content( me, r, tj_multi =False, **ka):
         contentype = r.headers.get( 'content-type', '')
@@ -287,7 +307,7 @@ class xtdb2_read( BaseClient):
             raise
 
 class xtdb2( xtdb2_read):
-    def submit_tx( me, docs,
+    def submit_tx( me, *docs,
                     table =None,                # the default for put, ignored for all else
                     valid_time_from_to =None,   # the default for put, ignored for all else
                     tz_default =None,
@@ -297,7 +317,7 @@ class xtdb2( xtdb2_read):
         ''' https://docs.xtdb.com/reference/main/xtql/txs.html
         tx_time   = system-time: overrides system-time for the transaction, mustn’t be earlier than any previous system-time.
         tz_default= default-tz: overrides the default time zone for the transaction
-        table + valid_time_from_to - defaults for making tx_puts from docs if dicts
+        table + valid_time_from_to - defaults for making tx_puts from docs assuming dicts
         '''
 
         #TODO inside-doc valid/end-time that may or may not be funcs
@@ -307,20 +327,30 @@ class xtdb2( xtdb2_read):
         valid_time_from_to = valid_time_from_to and [ me.may_time( x) for x in valid_time_from_to ]
         tx_time = me.may_time( tx_time)
 
-        if isinstance( docs, dict): docs = [ docs ]
-        assert isinstance( docs, (list,tuple)), docs
+        #XXX HACK to allow for submit_tx( [ dict1, dict2, someop.. ] , ::::
+        if len(docs) == 1 and isinstance( docs[0], (list,tuple)):
+            docs = docs[0]
+        assert docs
 
-        txs = [ d if not isinstance( d, dict) else
-                me.make_tx_put( d, table= table, valid_time_from_to= valid_time_from_to)
-                for d in docs ]
-        for op,tx in txs:
+        if table or valid_time_from_to:     #assume one put over many dict-docs
+            #extract dicts, into one put, at start
+            txs = [ d for d in docs if not isinstance( d, dict) ]
+            txs.insert( 0,
+                me.make_tx_put( *[ d for d in docs if isinstance(d, dict)], table= table, valid_time_from_to= valid_time_from_to)
+                )
+        else: txs = docs
+
+        for op_tx in txs:
+            assert isinstance( op_tx, me.Op), f'{op_tx} - missing table= argument??'
+            op = op_tx.op
             assert op in me._transaction_types, op
-            if isinstance( tx, dict):
-                table = tx.pop( 'table', None)
-                if table: tx[ 'table-name' ] = me._table_as_json( table, as_json)
 
-        txs = [ TaggedValue( 'xtdb.tx/'+op if 'xtql' not in tx else 'xtdb.tx/xtql'
-                    , tx ) for op,tx in txs ]    #xtql-jan24
+        txs = [
+            TaggedValue( 'xtdb.tx/'+o.op, o.opdict)
+            if not o.xtql
+            else TaggedValue( 'xtdb.tx/xtql', list( o.xtql))
+                    #, tx ) for op,tx in txs ]    #xtql-jan24
+                    for o in txs ]    #xtql-feb24
 
         ops = { 'tx-ops': txs }
         if tx_time or tz_default:   #general for whole tx
@@ -339,7 +369,7 @@ class xtdb2( xtdb2_read):
 
     _transaction_types = '''
         put delete erase
-        insert
+        insert-into
         assert-exists assert-not-exists
         call put-fn
         '''.split()    #call = v1.fn ; erase = v1.evict
@@ -353,21 +383,21 @@ class xtdb2( xtdb2_read):
         return Keyword( 'xt/'+name)
     @classmethod
     def _use_valid_time( me, optx, valid_time_from_to =None, as_json =False):
-        op,tx = optx
+        opts = optx.opdict
         if valid_time_from_to:
             time_valid_from, time_valid_to = valid_time_from_to
             if as_json: raise NotImplemented
             if time_valid_from:
-                tx[ me._time_valid_from ] = time_valid_from
+                opts[ me._time_valid_from ] = time_valid_from
             if time_valid_to:
-                tx[ me._time_valid_to ] = time_valid_to
+                opts[ me._time_valid_to ] = time_valid_to
         return optx
 
     _table_name = 'table-name'
     @classmethod
     def _use_table( me, optx, table, as_json =False):
-        op,tx = optx
         assert table and isinstance( table, str), table
+        tx = optx.opdict
         if as_json:
             raise NotImplemented
         else:
@@ -379,60 +409,69 @@ class xtdb2( xtdb2_read):
     #      can be passed to `during`, `starting-from` or `until` to set the effective valid time of the operation.
     #       or ??? can use valid_time_from_to like `put` does ?? XXX
 
+    class Op:
+        def __init__( me, op, xtql =None, **opdict):
+            me.op = op
+            me.opdict = opdict
+            me.xtql   = xtql
+            assert xtql or opdict
+            assert not ( xtql and opdict)
 
     @classmethod
-    def make_tx_put( me, doc, *, table, valid_time_from_to =None, as_json =False):
-        'put: one = upsert'
-        assert doc.get( me.id_name), doc    #always, dicts are auto-key2keyworded later
-        tx = [ 'put', dict( doc= dict( doc ))]  #copy.. just in case?
-        me._use_table( tx, table, as_json)
+    def make_tx_put( me, *docs, table, valid_time_from_to =None, as_json =False):
+        'put-many = upsert , single table'
+        assert docs
+        assert all( doc.get( me.id_name) for doc in docs ), docs    #always, dicts are auto-key2keyworded later
+        tx = me.Op( 'put', docs= docs )
+        tx = me._use_table( tx, table, as_json)
         return me._use_valid_time( tx, valid_time_from_to, as_json)
     @classmethod
-    def make_tx_delete( me, xtid, *, table, valid_time_from_to =None, as_json =False):
-        'delete: one'
-        tx = [ 'delete', { me.id_name: xtid }]
-        me._use_table( tx, table, as_json)
+    def make_tx_delete( me, *xtids, table, valid_time_from_to =None, as_json =False):
+        'delete-many, single table'
+        assert xtids
+        tx = me.Op( 'delete', **{ 'doc-ids': xtids })
+        tx = me._use_table( tx, table, as_json)
         return me._use_valid_time( tx, valid_time_from_to, as_json)
     @classmethod
-    def make_tx_erase( me, xtid, *, table, as_json =False):
-        'erase: one completely, all valid time'
-        assert table and isinstance( table, str), table
-        tx = [ 'erase', { me.id_name: xtid }]
+    def make_tx_erase( me, *xtids, table, as_json =False):
+        'erase-many: completely, all valid time, single table'
+        assert xtids
+        tx = me.Op( 'erase', **{ 'doc-ids': xtids })
         return me._use_table( tx, table, as_json)
 
-    @staticmethod
-    def make_tx_insert_many( query, *, table):
+    @classmethod
+    def make_tx_insert_by_query( me, query, *, table):
         '''insert-into: copy-many-from-query-into-table
             To specify a valid-time range, the query may return xt/valid-from and/or xt/valid-to columns. If not provided, these will default as per put'''
         assert table and isinstance( table, str), table
-        op = 'insert'   #hmmm, it's not ..-into
-        return [ op, dict( xtql= (Symbol( op), Keyword( table), query ))]
+        op = 'insert-into'   #hmmm, it's not ..-into
+        return me.Op( op, xtql= (Keyword( op), Keyword( table), query ))
 
-    @staticmethod
-    def make_tx_assert_exists( query):
+    @classmethod
+    def make_tx_assert_exists( me, query):
         'stop transaction if fails'
         op = 'assert-exists'
-        return [ op, dict( xtql= (Symbol( op), query)) ]
-    @staticmethod
-    def make_tx_assert_notexists( query):
+        return me.Op( op, xtql= (Keyword( op), query))
+    @classmethod
+    def make_tx_assert_notexists( me, query):
         'stop transaction if fails'
         op = 'assert-not-exists'
-        return [ op, dict( xtql= (Symbol( op), query)) ]
+        return me.Op( op, xtql= (Keyword( op), query))
 
     #TODO
-    #update_many = xtql, (update table opts unify_clauses)
-    #delete_many = xtql, (delete table bind-or-opts unify_clauses)
-    #erase_many  = xtql, (erase  table bind-or-opts unify_clauses)
+    #update_by_query = xtql, (update table opts unify_clauses)
+    #delete_by_query = xtql, (delete table bind-or-opts unify_clauses)
+    #erase_by_query= xtql, (erase  table bind-or-opts unify_clauses)
 
     #these are unclear, untested
-    @staticmethod
-    def make_tx_func_decl( funcname, body):
+    @classmethod
+    def make_tx_func_decl( me, funcname, body):
         assert funcname and isinstance( funcname, str), funcname
         assert body     and isinstance( body, str), body
-        return [ 'putFn', { 'fn-id': Keyword( funcname), 'tx-fn': body } ]  #maybe
-    @staticmethod
-    def make_tx_func_call( funcname, *args):
+        return me.Op( 'putFn', **{ 'fn-id': Keyword( funcname), 'tx-fn': body } )  #maybe
+    @classmethod
+    def make_tx_func_call( me, funcname, *args):
         assert funcname and isinstance( funcname, str), funcname
-        return [ 'call', { 'fn-id': Keyword( funcname), 'args': args } ]  #maybe
+        return me.Op( 'call', **{ 'fn-id': Keyword( funcname), 'args': args } )  #maybe
 
 # vim:ts=4:sw=4:expandtab

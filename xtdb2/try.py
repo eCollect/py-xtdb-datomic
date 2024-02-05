@@ -36,7 +36,7 @@ docs = [
 for d in docs: addid( d)
 txkey= None
 
-if 0:
+if 10:
     txkey = log( db.tx, docs, table= 'atablename' )
 
 from transit.transit_types import TaggedValue
@@ -91,7 +91,7 @@ if 0:
         qs.fromtable( 'atablename', 'a', 'b' )
         ))
 
-if 0:
+if 10:
     #assert-exists-or-not
     docs1 = [
         db.make_tx_assert_notexists( qs.s(
@@ -101,6 +101,7 @@ if 0:
         ]
     txkey = log( db.tx, docs1, table= 'btablename' )
 
+if 10:
     docs2 = [
         db.make_tx_assert_exists( qs.s(
             qs.pipeline(
@@ -111,13 +112,13 @@ if 0:
         ]
     txkey = log( db.tx, docs2, table= 'btablename' )
 
-if 0:
+if 10:
     log( db.query, qs.s(
                 qs.fromtable( 'btablename', )
                 ), after_tx = txkey )
     print('======')
     docs3 = [
-        db.make_tx_insert_many( qs.s(
+        db.make_tx_insert_by_query( qs.s(
                 qs.fromtable( 'btablename', ),
             ), table= 'atablename'),
         dict( a=321, b='x', **makeid()),
@@ -131,7 +132,8 @@ if 0:
 
     print('======')
     docs4 = [
-        db.make_tx_erase( r[0][ db.id_name ], table= 'atablename'),
+        #db.make_tx_erase( r[0][ db.id_name ], table= 'atablename'),
+        db.make_tx_erase( 234, table= 'atablename'),
         ]
     txkey = log( db.tx, docs4 )
     log( db.query, qs.s(
@@ -153,7 +155,7 @@ rel ( $t [a b])
 if 10:
     log( db.status )
     log( db.query, qs.s( q_last_tx ))
-    txkey = log( db.tx, docs, table= 'atablename' )
+    txkey = log( db.tx, *docs, table= 'atablename' )
     log( db.query, qs.s( q_last_tx ))
     status = log( db.status)
     log( db.query, qs.s( q_last_tx ))
