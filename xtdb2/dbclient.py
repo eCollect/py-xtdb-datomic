@@ -2,7 +2,7 @@ from base.rpc_json_http import BaseClient, log #dict_without_None
 
 ####### transit-json stuff
 
-DEBUG = 10
+DEBUG = 0
 
 from pprint import pformat
 import datetime
@@ -17,15 +17,12 @@ if not NEWTT:
 
     from transit import decoder, read_handlers
 else:
-    from transit.encode import Encoder,  TaggedValue, Keyword, Symbol, frozendict
-    from transit import encode as write_handlers # :/
-    from transit import decode as decoder
+    from transit3.encode import Encoder,  TaggedValue, Keyword, Symbol, frozendict
+    from transit3 import encode as write_handlers # :/
+    from transit3 import decode as decoder
     read_handlers = decoder
 
-    def qs2tt( qs):     #call over .qs module before building any queries
-        qs.sym = Symbol
-        qs.kw = Keyword
-        qs.sym_wild = Symbol( '*')
+    #to use ./qs - call qs.setup( symbol= Symbol, keyword= Keyword) before building any queries
 
 #+few others below
 

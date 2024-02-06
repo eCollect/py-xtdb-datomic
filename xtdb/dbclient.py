@@ -275,7 +275,7 @@ class xtdb( xtdb_read):
     - submit_tx via edn ?
     - tests
     '''
-    def submit_tx( me, docs, tx_time =None, put_valid_time =None, put_end_valid_time =None, as_json =True):
+    def submit_tx( me, docs, tx_time =None, put_valid_time =None, put_end_valid_time =None, as_json =False):
         ''' POST /_xtdb/submit-tx
         https://docs.xtdb.com/clients/http/#submit-tx
         https://docs.xtdb.com/clients/http/openapi/1.22.1/#/paths/~1_xtdb~1submit-tx/post       beware has more stuff than above
@@ -304,6 +304,7 @@ class xtdb( xtdb_read):
                     for d in docs ]
         for d in docs:
             assert d[0] in me._transaction_types, d[0]
+            if not as_json: d[0] = me.ns_api_kw( d[0])  #keywordize op
 
         kargs = {}
         #TODO edn_dumps+headers
@@ -318,14 +319,13 @@ class xtdb( xtdb_read):
                 ops.update( { me.ns_api_name+'submit-tx-opts': { me.ns_api_name+'tx-time': tx_time }} )
             data = json.dumps( ops )
         else:
-            docs = [ [ me.ns_api_kw( d[0]), *d[1:]] for d in docs ]    #keywordize
             ops = { Keyword('tx-ops'): docs }
             if tx_time:
                 #assert 0, 'this does not work via json' #TODO below edn_dumps.. then try again
                 #tx_time = edn_dumps( tx_time)
                 #tx_time = _tx_time.split( '+')[0]+'Z'#_edn_dumps( tx_time)
                 ops[ me.ns_api_kw('submit-tx-opts') ] = { me.ns_api_kw('tx-time'): tx_time }
-            data = edn_dumps( ops)
+            data = edn_dumps( ops, keyword_keys =True ).encode('utf8')      #auto-keywordize
             kargs.update( headers= me._headers_content_edn )
 
         return me._post( 'submit-tx',
@@ -356,7 +356,7 @@ class xtdb( xtdb_read):
         no automatics
         #TODO some inside-doc valid/end-time that may or may not be funcs
         '''
-        if as_json :# or 1:
+        if as_json  or 1:
             assert doc.get( me.id_name), doc    #for json
         else:
             assert doc.get( me.id_kw), doc    #for edn

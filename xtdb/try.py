@@ -32,9 +32,10 @@ if 10:
              (k,f( fake)) for k,f in extra_fields.items() ],
             date= fake.date_time_between( start_date='-15yr', end_date='now').astimezone().isoformat(),
             age = fake.random_number(),
-            #aliases = [ str(fake.uuid4()) for x in range(95) ],
-            cars = [ dict( vin= fake.vin(), model= _models[ x % len(_models) ], mileage= fake.random_number(), plate= fake.license_plate()) for x in range(177) ],
-            **dict( ('x'+str(i), i) for i in range(2000)),
+            aliases = [ str(fake.uuid4()) for x in range(9 ) ],
+            cars = [ dict( vin= fake.vin(), model= _models[ x % len(_models) ], mileage= fake.random_number(), plate= fake.license_plate()) for x in range( 7) ],
+            **dict( ('x'+str(i), (i,bool(i),float(i)/3)) for i in range(10)),
+            **dict( ('y'+str(i), [i,bool(i),float(i)/7]) for i in range(10)),
             **{ 'айде': 'беее' } #non-ascii
             )
 
@@ -55,13 +56,21 @@ if 10:
         avg = []
         avgdt = []
         t0 = dt = None
-        docs = [fake_doc_xt( fake) for _ in range(10+0)]
+        docs = [fake_doc_xt( fake) for _ in range(100)]
+
         # from xtdb import fail
         # docs = fail.success if 0 else fail.fail
-
-        for x in range( int( os.getenv('N') or 100)):
+        if 0:
+            import json
+            with open( 'tx100-9-7-19.json', 'w') as fo:
+                json.dump( docs, fo)
+            from xtdb2.dbclient import transit_dumps
+            with open( 'tx100-9-7-19.jstx', 'w') as fo:
+                fo.write( transit_dumps( docs, False))
+            #assert 0
+        for x in range( int( os.getenv('N') or 1+00)):
             #docs = [fake_doc_xt( fake) for _ in range(100)]
-          if 0:
+          if 10:
             if 10:
              for d in docs:
                 xx = f':{x}'
@@ -76,15 +85,15 @@ if 10:
             if 10:
                 db.tx( docs)
             print( 11111, x, avgit( avg,t),'ms', dt and avgit( avgdt, dt, True)) #db.stats())
-            if 0 and x%2:
+            if 10 and x%2:
                 for d in docs:
                     d['name'] += ':extt'
                 t = time()
                 db.tx( docs)
                 print( 22222, x, avgit( avg,t),'ms')
-          if 10: # and not x%4:
+          if 0: # and not x%4:
                 t = time()
-                q_tx_first_n(1000)
+                q_tx_first_n(500+0)
                 print( 33333, x, avgit( avg,t),'ms')
 
     if 0:   #valid_time +-

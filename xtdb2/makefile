@@ -1,6 +1,5 @@
 now: tests
 #try
-#now: bench
 #now: transit-tests
 #now: qs
 
@@ -16,8 +15,9 @@ dload upd update:
 dr docker:
 	sudo systemctl start docker
 
+HOST=localhost
 status:
-	curl http://localhost:$(PORT)/status
+	curl http://$(HOST):$(PORT)/status
 
 ## show :3000 as :3002 ; needs hacking SSL.* in /usr/lib/python3.10/site-packages/mitmproxy/net/tls.py
 PORTNEW=3022
@@ -33,8 +33,8 @@ test_db:	#near-empty, use try.py instead
 	-cd .. && python -m xtdb2.test_db $(ARGS)
 tests:    test_req test_db
 
-b2: ARGS=x.test_create
-b2: test_db
+t2: ARGS=x.test_create
+t2: test_db
 
 qs:
 	python qs.py
@@ -54,9 +54,7 @@ enc:
 	python encode.py
 
 .PHONY: bench
-bench:
-	PYTHONPATH=. python bench-transit.py bench/tx100-9-7-19.jstx
-bench2:
+bench b:
 	PYTHONPATH=. python bench-transit.py transit-format/examples/0.8/example.json
 
 # vim:ts=4:sw=4:noexpandtab

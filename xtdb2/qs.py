@@ -41,11 +41,11 @@ def sym( x): return '%'+x
 def kw( x):  return ':'+x
 sym_wild = sym( '*')
 
-def setup( a_sym, a_kw):
+def setup( symbol, keyword):
     global sym, kw, sym_wild
-    sym = a_sym
-    kw = a_kw
-    sym_wild = sym( '*')
+    sym = symbol
+    kw = keyword
+    sym_wild = symbol( '*')
 
 def s( x, *, name_as_sym =False):
     if isinstance( x, (list,tuple)):
