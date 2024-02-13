@@ -23,7 +23,7 @@ dt_ts = f'["~#time/instant","{dt_text}"]'
 def dt_text_02z( x): return x.replace( '+00:00', 'Z')
 def dt_text_z20( x): return x.replace( 'Z', '+00:00')
 
-tk_obj= TX_key_id( tx_id= 123, system_time= datetime.datetime(2022, 2, 10, 20, 30, 40, 987242, tzinfo =datetime.UTC))
+tk_obj= TX_key_id( tx_id= 123, system_time= datetime.datetime(2022, 2, 10, 20, 30, 40, 987242, tzinfo =datetime.timezone.utc))
 tk_ts = '["~#xtdb/tx-key",["^ ","~:tx-id",123,"~:system-time",["~#time/instant","2022-02-10T20:30:40.987242+00:00"]]]'
 
 class transport( unittest.TestCase):

@@ -41,7 +41,7 @@ if 10:
 
 from transit.transit_types import TaggedValue
 
-#txkey = TX_key_id( tx_id= 121651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
+#txkey = TX_key_id( tx_id= 121651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.timezone.utc))
 
 from xtdb2 import qs
 qs.sym = sym
@@ -59,7 +59,7 @@ if 0:
 #    )
 #if 0: dict(
     tx_timeout_s = 2, #TaggedValue( 'time/duration', 'PT3S'),
-    after_tx = txkey #TX_key_id( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.UTC))
+    after_tx = txkey #TX_key_id( tx_id= 21651, system_time= datetime.datetime(2024, 1, 10, 20, 46, 42, 987242, tzinfo =datetime.timezone.utc))
         #["~#xtdb/tx-key",["^ ","~:tx-id",612343,"~:system-time",["~#time/instant","2024-01-10T11:08:36.422964Z"]]]
     )
 if 0:

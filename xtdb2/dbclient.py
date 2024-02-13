@@ -320,7 +320,7 @@ class xtdb2( xtdb2_read):
         #TODO inside-doc valid/end-time that may or may not be funcs
         #TODO SQL is unclear - texts or what
         if 0:
-            valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5, tzinfo= datetime.UTC ), None ]
+            valid_time_from_to = [ datetime.datetime( 2023, 2, 3, 4, 5, tzinfo= datetime.timezone.utc ), None ]
         valid_time_from_to = valid_time_from_to and [ me.may_time( x) for x in valid_time_from_to ]
         tx_time = me.may_time( tx_time)
 
