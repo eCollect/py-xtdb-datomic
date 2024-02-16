@@ -163,5 +163,14 @@ class BaseClient:
     def _post( me, url, *, data, headers ={}, ka_response ={}, **ka):
         r = requests.post( me.url( url), data= data, **me._headers( headers), **ka)
         return me._response( r, **ka_response)
+    _cache_now = None
+    def _post_with_cache( me, url, *, data, headers ={}, ka_response ={}, **ka):
+        cckey = url + str(data)
+        if me._cache_now and cckey in me._cache_now:
+            r = me._cache_now[ cckey]
+        else:
+            r = requests.post( me.url( url), data= data, **me._headers( headers), **ka)
+            if isinstance( me._cache_now, dict): me._cache_now[ cckey ] = r #.text
+        return me._response( r, **ka_response)
 
 # vim:ts=4:sw=4:expandtab

@@ -11,31 +11,37 @@
 * xtdb/v2: 
   + query-builder
   + dbclient 
-  - rework rpc/dbclients: independent sym/kw/immutables or per-dbclient-specific
+  + rework rpc/dbclients: per-dbclient-specific (and not independent sym/kw/immutables)
   - transit+json : 
-    ~ source-wise, seems slow. try speed up ?
+    + source-wise, seems slow. try speed up ?
       + few changes, some more impactful than others. broken caching
     + fix caching
     + fix UTF-8-encoding
     + fix json-stream:decode-piece-by-piece/restarting-cache
     + incremental json a.k.a "streaming-json" whitespace-delimited-multiple-top-values
+    + writer is struct->str! while read/decode is ok=struct->struct
     - test speed+size with/without cache X with/without gzip, for repeating things, and for non-repeating
+    - tests of transit-thing i/o as used+hacked in dbclient
+  - json-LD ??
 
 ###########
 
 - objmapper.. maybe common ??
     - save:
         - update-or-create = default
-        - these are possible but weak:
-        -- create-no-update = match-not-exists+put
-        -- update-no-create = match-exist+put
+        - these constraints are possible :
+        -- create-no-update = ensure not-exists + put
+        -- update-no-create = ensure exist + put
           -- with version-of-obj-optimistic-lock = match-exists-same-version+put
+        -- links/FK = ensure those exists
     - id=some-autoid-if-not-there
         - datomic: id treated as temporary, used to link objs and report real-id
         - xtdb: id is the-real-id
         see https://github.com/sony/sonyflake
-    - - some future: unit-of-work, topology-sort etc
-        - but for now, assume plain record/doc-based one-by-one saving.. 
+    - >> unit-of-work
+        - - topology-sort etc.. not needed
+        - needs schema
+        - can auto-make constraints e.g. uniq/inexisting-obj or pre-existing obj/links/FKs
     - attr-declare/processing/conversions:        
         - schema
             ? pydantic ?
@@ -45,16 +51,15 @@
             - to-one
             - to-many
 
-- unitofwork ?
-
-requiredness: 
- ?   transaction-function rejecting data if xyz missing
-
-uniqueness: 
- ~  datomic: unique/ident , composite indexes etc
-    xtdb: ??????? tx-func again?
-        https://docs.xtdb.com/resources/faq/#uniqueconstraint
-
+- constraints:
+     - requiredness: 
+        - transaction-function rejecting data if xyz missing
+        - xtdb2: assert-exists
+     - uniqueness: 
+        ~ datomic: unique/ident , composite indexes etc
+        - xtdb: tx-func.. https://docs.xtdb.com/resources/faq/#uniqueconstraint
+        - xtdb2: assert-not-exists
+    - see unit-of-work above for automatics
 
 type-assurance choices: 
  -A attributes carry the type: 

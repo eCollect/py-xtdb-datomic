@@ -43,11 +43,11 @@ all: test
 EXCLUDES= 1 dist xtdb*/others xtdb/srv*/* datomic/datomic-*/* datomic/mbrainz*
 PYPACKS = $(VIRTUAL_ENV)/lib/python3*/site-packages
 tags ctags:
-	ctags $(EXCLUDES:%=--exclude="%") --links=no -R . $(PYPACKS)/edn_format $(PYPACKS)/transit
+	ctags $(EXCLUDES:%=--exclude="%") --links=no -R . $(PYPACKS)/edn_format $(PYPACKS)/transit3
 
 PROFILER = -m cProfile -o _profile
 try:
-	PYTHONPATH=. $(_ENVVARS) $(ENVVARS) python $(PROFILER) xtdb/try.py
+	PYTHONPATH=. $(_ENVVARS) $(ENVVARS) $(if $N,N=$N) $(if $(XTDB),XTDB=$(XTDB)) python $(PROFILER) xtdb/try.py
 
 try2: _ENVVARS= XTDB2=1 PORT=3002
 try2: try
