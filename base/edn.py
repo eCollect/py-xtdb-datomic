@@ -70,7 +70,7 @@ class EDNClientMixin:
         return v
 
     _app_edn  = 'application/edn'
-    _headers_content_edn  = { 'content-type'  : _app_edn }
+    _headers_content_edn  = { 'content-type'  : _app_edn + '; charset=utf-8' }
     #_headers_base = {'accept': 'application/edn, text/plain'}    #text/html makes errors too fancy
 
     def _content( me, r, **ka):
