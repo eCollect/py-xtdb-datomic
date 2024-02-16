@@ -23,6 +23,9 @@ else:
     read_handlers = decoder
 
     #to use ./qs - call qs.setup( symbol= Symbol, keyword= Keyword) before building any queries
+def qs_setup():
+    from . import qs
+    qs.setup( symbol= Symbol, keyword= Keyword)
 
 #+few others below
 
