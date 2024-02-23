@@ -321,10 +321,12 @@ def _aggregate2( name, n, var_or_expr):
 class aggregate:
     @classmethod
     def _op_declare1( klas, name, funcname =None):
-        setattr( klas, name, staticmethod( partial( _aggregate1, funcname or name)))
+        for aname in set([ name, name.replace('-','_') ]):
+            setattr( klas, aname, staticmethod( partial( _aggregate1, funcname or name)))
     @classmethod
     def _op_declare2( klas, name, funcname =None):
-        setattr( klas, name, staticmethod( partial( _aggregate2, funcname or name)))
+        for aname in set([ name, name.replace('-','_') ]):
+            setattr( klas, aname, staticmethod( partial( _aggregate2, funcname or name)))
 for a1 in 'sum min max count avg median variance stddev distinct count-distinct'.split():
     aggregate._op_declare1( a1)
 for a2 in 'rand sample'.split():
