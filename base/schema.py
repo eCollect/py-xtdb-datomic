@@ -25,6 +25,9 @@ class AttrType( dictAttr):
         if args: args = '( '+args +' )'
         return me.typename + args
     __repr__ = __str__
+    def with_name( me, name):
+        me.name = name
+        return me
 
 if 0: #abandon, x.doc/x.unique is set-up in __init__
     #flags as methods
@@ -93,15 +96,15 @@ class types:
 EnumType = strEnum
 
 def struct( **ka):
-    r = dictAttr( (k,v() if callable( v) else v) for k,v in ka.items())
+    r = dictAttr( (k,v( name= k ) if callable( v) else v.with_name( k ) ) for k,v in ka.items())
     for k,v in r.items():
         assert isinstance( v, AttrType), k
     return r
 
-s = types
+t = s = types
 # export: types, struct, EnumType, maybe AttrType
 __all__ = '''
-types s struct EnumType AttrType
+types t s struct EnumType AttrType
 '''.split()
 
 # vim:ts=4:sw=4:expandtab
