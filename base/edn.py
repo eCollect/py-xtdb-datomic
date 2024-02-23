@@ -35,13 +35,19 @@ class hacks:
     @classmethod
     def edn_response_dicts_Keyword_into_str( me, maps_keys =True, maps_values =False, keyword_into_str =keyword_into_str.__func__):
         from edn_format.immutable_dict import ImmutableDict
-        ImmutableDict.__setitem__ = None    #XXX why is it there ?
         k_convert = keyword_into_str if maps_keys else lambda x:x
         v_convert = keyword_into_str if maps_values else lambda x:x
-        def _init_( me, dct):
-            if isinstance( dct, (dict,ImmutableDict)): dct = dct.items()
-            me.dict = dict( (k_convert(k),v_convert(v)) for k,v in dct)
-            me.hash = None
+        if issubclass( ImmutableDict, dict):    #XXX e.g. edn_mutable_dict
+            o__init__ = ImmutableDict.__init__
+            def _init_( me, dct):
+                if isinstance( dct, dict): dct = dct.items()
+                o__init__( me, { k_convert(k):v_convert(v)  for k,v in dct })
+        else:
+            ImmutableDict.__setitem__ = None    #XXX why is it there ?
+            def _init_( me, dct):
+                if isinstance( dct, (dict,ImmutableDict)): dct = dct.items()
+                me.dict = { k_convert(k):v_convert(v)  for k,v in dct }
+                me.hash = None
         ImmutableDict.__init__ = _init_
     @classmethod
     def edn_response_lists_Keyword_into_str( me, keyword_into_str =keyword_into_str.__func__):
@@ -60,6 +66,16 @@ class hacks:
         pprint.PrettyPrinter._dispatch[ ImmutableDict.__repr__] = pprint.PrettyPrinter._dispatch[ dict.__repr__]
         pprint.PrettyPrinter._dispatch[ ImmutableList.__repr__] = pprint.PrettyPrinter._dispatch[ list.__repr__]
         #also safe_repr?
+
+    @staticmethod
+    def edn_mutable_dict( dict =dict):
+        class idict( dict): pass
+        from edn_format import immutable_dict, edn_parse
+        immutable_dict.ImmutableDict = idict
+        edn_parse.ImmutableDict = idict
+        import edn_format  #just in case.. for tests
+        edn_format.ImmutableDict = idict
+    #TODO same for ImmutableList
 
 
 class EDNClientMixin:
