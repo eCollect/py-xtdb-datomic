@@ -31,7 +31,7 @@ docs = [
     dict( a=2, c= 12.45 ),
     dict( a=132, c= 12.4 ),
     dict( avalue=3, b='явер', ),
-    dict( akey=5, **{'ключ': 14}),
+    dict( aKey=5, Bkey=6, **{'кЛюч': 14, 'Глюч': 15}),
     ] #datetime.datetime.now() ) ]
 for d in docs: addid( d)
 txkey= None
@@ -47,6 +47,14 @@ from xtdb2 import qs
 qs.sym = sym
 qs.kw = kw
 qs.sym_wild = sym( '*')
+if 1:
+ log( db.query,
+    #'from :atablename [a b c]' -> plain text expects SQL
+    ( sym('->'),
+     ( sym('from'), kw('atablename'), [ sym('*') ] ) ,
+    ),
+    )
+assert 0
 if 0:
  log( db.query,
     #'from :atablename [a b c]' -> plain text expects SQL

@@ -1,13 +1,15 @@
-#a: story
+a: uow
 now: test
 
 story:
 	python -m datomic.astory2da
 	python -m xtdb.astory2xt
 
+uow:
+	python  maybe/unitofwork.py
 
 .PHONY: tags test tests
-export PYTHONPATH=`pwd`
+export PYTHONPATH=$(shell pwd)
 test tests:	#non-db
 	python -m base.qsyntax
 	python -m base.test_qs

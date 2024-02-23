@@ -50,7 +50,7 @@ class txkey_handler:
     def from_rep( x):
         #if rh_Mapkeystr_kebab2snake.from_rep == rh_Mapkeystr_kebab2snake.from_rep_off:
         #    return TX_key_id( tx_id= x[ 'tx-id'], system_time= x[ 'system-time'])
-        return TX_key_id( tx_id= x.tx_id, system_time= x.system_time)   #see rh_Mapkeystr_kebab2snake
+        return TX_key_id( tx_id= x['tx_id'], system_time= x['system_time'])   #see rh_Mapkeystr_kebab2snake
     tag_len_1 = tag_str = None
 
 dt_tag = 'time/instant'
@@ -136,9 +136,9 @@ def transit_dumps( x, encode =True):
 
     if DEBUG:
         if 0:
-            class dct( dict): pass
-            dct.__getattr__ = dct.__getitem__
-            Decoder.map_factory = dct #staticmethod( lambda x: x )
+            class dctatr( dict): pass
+            dctatr.__getattr__ = dctatr.__getitem__
+            decoder.MAP_FACTORY = dctatr #staticmethod( lambda x: x )
             rh_Mapkeystr_kebab2snake.from_rep = rh_Mapkeystr_kebab2snake.from_rep_off
         vv = transit_loads( value)
         print( '\n  '.join( ['tj-dump',
@@ -153,6 +153,11 @@ def transit_dumps( x, encode =True):
 
 #dict into dictattr
 frozendict.__getattr__ = frozendict.__getitem__
+if 0:
+  class dctatr( dict): pass
+  dctatr.__getattr__ = dctatr.__getitem__
+  decoder.MAP_FACTORY = dctatr #staticmethod( lambda x: x )
+
 
 #auto de-keywordize dicts, also kebab2snake_case
 #if getattr( decoder, 'X_mapkeystr', 0)
@@ -251,6 +256,7 @@ class xtdb2_read( BaseClient):
                     explain= False,
                     tx_timeout_s :int =None,    # for after_tx/at_tx
                     #as_json =False,
+                    #json_keyFn = one-of: CAMEL_CASE_STRING SNAKE_CASE_STRING KEBAB_CASE_STRING
                     ):
         ''' https://docs.xtdb.com/reference/main/xtql/queries.html
         '''
@@ -285,9 +291,10 @@ class xtdb2_read( BaseClient):
                 )
     #XXX HACK! XXX
     def sync( me, table =None, n =1, after_tx =None):
+        #print( 'sync', after_tx)
         if table: q = (Symbol('->'), (Symbol('from'), Keyword( table), [ Symbol('*') ]), (Symbol('limit'), n))
         else: q = (Symbol('rel'), [], [])
-        return me.query( q, after_tx= after_tx or me.latest_submitted_tx(), tx_timeout_s= 55)
+        return me.query( q, after_tx= after_tx or me.latest_submitted_tx(), tx_timeout_s= 555)
 
     def _content( me, r, tj_multi =False, **ka):
         contentype = r.headers.get( 'content-type', '')
