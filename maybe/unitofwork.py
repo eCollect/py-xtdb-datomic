@@ -1,20 +1,22 @@
 from base import schema
 
 def obj_key( obj):
-    return what?
+    return obj[ 'id' ] #what?
 def obj_get_attr( obj, name):
     return obj.get( name )
 def obj_set_attr( obj, name, value):
     obj[ name ] = value
 def obj_del_attr( obj, name):
     del obj[ name ]
+def obj_get_schema( obj):
+    return 'schema-of-obj'
 
-def is_link_or_component_non_composite( subschema):
+def subschema_is_link_or_component_non_composite( subschema):
     return (
         isinstance( subschema, schema.types.link) or
         isinstance( subschema, schema.types.component) and not subschema.embed and not subschema.flatten
         )
-def is_backref_and_not_forward_ref( subschema):
+def subschema_is_backref_and_not_forward_ref( subschema):
     #return True #what?  #all become backrefs, i.e. using ForeignKey in subobj   XXX why?
     #not all.. see ./db-x2y.txt
     #m2o -> forward_ref
@@ -26,15 +28,15 @@ def is_backref_and_not_forward_ref( subschema):
     #( isinstance( subschema, schema.types.link)  #m2o, m2m
     return subschema.many and subschema.indirect #XXX
 
-def is_multi( subschema):
+def subschema_is_multi( subschema):
     return subschema.many
-def set_parent_link_backref( obj, subschema, parent):
+def obj_set_parent_link_backref( obj, subschema, parent):
     obj_set_attr( obj, subschema.name.backref, parent)     #XXX ?
-def hide_forward_link( obj, subschema):
+def obj_hide_forward_link( obj, subschema):
     obj_del_attr( obj, subschema.name)  #or mark it as non-saveable
-def walk_schema( obj):
-    oschema = get_schema_by_obj_instance( obj)
-    for subschema in oschema:
+def obj_walk_schema( obj):
+    oschema = obj_get_schema( obj)
+    for subschema in oschema.values():
         yield subschema, obj_get_attr( obj, subschema.name)
 
 ##
@@ -47,12 +49,12 @@ class objset( dict):
         level: int
         obj: object
 
-    def add( me, level, *objs):
+    def add( me, *objs, level):
         for o in objs:
             key = obj_key( o)
             if key in me:
                 e = me[ key ]
-                assert o is e.obj and level == e.level, (level, o, key, e)
+                assert o is e.obj and level == e.level, ('duplicate:',level, o, key, e)
             else:
                 me[ key ] = me.objref( level=level, obj=o)
     def find( me, obj):
@@ -90,11 +92,11 @@ class unit_of_work:
                 level = current.level
                 obj = current.obj
                 results.add( level, obj)
-                for subschema, subobj in walk_schema( obj):
-                    if not is_link_or_component_non_composite( subschema):
+                for subschema, subobj in obj_walk_schema( obj):
+                    if not subschema_is_link_or_component_non_composite( subschema):
                         continue
                     assert subobj
-                    is_backref = is_backref_and_not_forward_ref( subschema )
+                    is_backref = subschema_is_backref_and_not_forward_ref( subschema )
 
                     if PREDEF_IDS:
                         newlevel = level   #XXX-1 levels are unneeded - IF the id's are predefined
@@ -105,13 +107,13 @@ class unit_of_work:
 
                     if is_backref:
                         # all subobj-pointing-obj
-                        hide_forward_link( obj, subschema)
+                        obj_hide_forward_link( obj, subschema)
                         #parent_link = obj
 
-                    subobjs = subobj if is_multi( subschema) else [ subobj ]
+                    subobjs = subobj if subschema_is_multi( subschema) else [ subobj ]
                     for sobj in subobjs:
                         if parent_link:
-                            set_parent_link_backref( sobj, subschema, obj)
+                            obj_set_parent_link_backref( sobj, subschema, obj)
                         oldentry = results.find( sobj )
                         if oldentry:
                             assert oldentry.obj is sobj, (sobj, obj_key( sobj), oldentry)
@@ -162,14 +164,13 @@ class unit_of_work2:
     def update_or_create( me, *objs):
         'no constraints'
         me.inputs.add( level= 'upsert', *objs)
-    upsert = update_no_create
+    upsert = put = update_no_create
 
     #XXX ref integrity
     #def delete_and_cascade vs delete_no_cascade?? vs delete_and_set_null  XXX ??
 
     def build( me):
         '''
-        PREDEF_IDS: levels/order does not matter as long as all needed objects are pulled in ;
         this is for adding, maybe updating ; but not deleting.. XXX
         - ??? global-above-obj_type constraints ????
         -Rc: for all create/_no_update: save + assert_notexists( all-uniq-keys-of-obj at least objid)
@@ -183,7 +184,7 @@ class unit_of_work2:
         assert me.inputs
         assert_notexists= {}
         assert_exists= {}
-        for key, current in me.inputs.values():
+        for key, current in me.inputs.items():
             level = current.level
             obj = current.obj
             if level == 'create':   #Rc
@@ -196,34 +197,92 @@ class unit_of_work2:
                 assert 0, level
 
             #XXX Rw
-            for subschema, subobj_or_many in walk_schema( obj):
-                if not is_link_or_component_non_composite( subschema):
+            for subschema, subobj_or_many in obj_walk_schema( obj):
+                if not subschema_is_link_or_component_non_composite( subschema):
                     continue
                 #XXX Rw
-                is_backref = is_backref_and_not_forward_ref( subschema )
+                is_backref = subschema_is_backref_and_not_forward_ref( subschema )
                 if is_backref:
                     pass
                     # all subobj-pointing-obj
-                    #hide_forward_link( obj, subschema)
+                    #obj_hide_forward_link( obj, subschema)
                 else:
                     #XXX Rl
-                    subobjs = subobj_or_many if is_multi( subschema) else [ subobj_or_many ]
+                    subobjs = subobj_or_many if subschema_is_multi( subschema) else [ subobj_or_many ]
                     for sobj in subobjs:
                         assert sobj
                         assert_exists[ obj_key( sobj)] = sobj     #XXX is sobj THE id ???
                         #TODO and convert-to-just-id ???
 
-        #XXX Rx these are mutually exclusive..
+
+        for key, current in me.inputs.items():
+            obj = current.obj
+            #XXX Re assert-exists should be ignored if obj is just-to-be-created-or-saved - i.e. a->b & b->a
+            if obj.level != 'update':
+                assert_exists.pop( key, None)
+            me.save.append( obj)
+
+        #XXX Rx these are mutually exclusive - but after ignoring just-to-be-saved
         both = set( assert_exists) & set( assert_notexists)
         assert not both, both
 
-        for key, current in me.inputs.values():
-            obj = current.obj
-            #XXX Re assert-exists should be ignored if obj is just-to-be-saved - i.e. a->b & b->a
-            assert_exists.pop( key, None)
-            me.save.append( obj)
-        me.assert_notexists = assert_notexists.values()
-        me.assert_exists    = assert_exists.values()
+        me.assert_notexists = assert_notexists #.values()
+        me.assert_exists    = assert_exists #.values()
         #me.asserts = dict( assert_exists= assert_exists, assert_notexists = assert_notexists)
+
+if __name__ == '__main__':
+    import unittest
+    class a( unittest.TestCase):
+        def setUp( me):
+        #    me.u = unit_of_work2()
+            t = schema.t
+            aschema = schema.dictAttr(
+                aobj = schema.struct(
+                        id = t.str( identity=1),
+                        a = t.int,
+                        )
+                )
+            global obj_get_schema
+            obj_get_schema = lambda obj: aschema[ 'aobj' ]
+
+        def test_123( me):
+            u = unit_of_work2()
+            a= dict( id=1, a=5)
+            b= dict( id=2, a=6)
+            c= dict( id=3, a=7)
+            u.create_no_update( a)
+            u.update_no_create( b)
+            u.update_or_create( c)
+            u.build()
+            print( f'{u.save=}')
+            print( f'{u.assert_notexists=}')
+            print( f'{u.assert_exists=}')
+            me.assertEqual( u.save, [ a,b,c])                           #Rc Ru Rs
+            me.assertEqual( list( u.assert_notexists.values()), [ a])   #Rc
+            me.assertEqual( list( u.assert_exists.values()), [])        #Re over Ru
+
+        def test_add_twice( me):
+            a= dict( id=1, a=5)
+            kinds = 'create_no_update update_no_create update_or_create'.split()
+            for kind in kinds:
+                u = unit_of_work2()
+                getattr( u, kind)( a)
+
+                #same kind repeated = ok
+                getattr( u, kind)( a)
+
+                #other kind = err
+                for okind in kinds:
+                    if okind != kind:
+                        with me.assertRaisesRegex( AssertionError, 'duplicate:'):
+                            getattr( u, okind)( a)
+
+        ##def link -> assert_exists (Rl)
+        #TODO def obj-with-links -> assert_exists( all-links) (Rl,Rw)
+        #TODO def obj-with-alink+links + alink as update_no_create -> same/ assert_exists( alink+links) (Rl,Rw,Re,Rx)
+        #TODO def obj-with-alink+links + alink as create_no_update -> assert_not_exists( alink) assert_exists( links) (Rl,Rw,Re,Rx)
+        #TODO def obj-with-alink+links + alink as update_or_create -> same/ assert_not_exists( alink) assert_exists( -links) (Rl,Rw,Re,Rx)
+
+    unittest.main( verbosity=2)
 
 # vim:ts=4:sw=4:expandtab
