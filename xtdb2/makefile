@@ -2,16 +2,18 @@ now: tests
 #try
 #now: transit-tests
 #now: qs
-
 PORT=3002
 REMOVE_AT_EXIT=--rm
 #ARGS=--entrypoint bash		#just walk inside
 #V2TAG=xtdb-ea
 V2TAG=xtdb-standalone-ea
-run:
-	docker run -ti $(REMOVE_AT_EXIT) $(ARGS) -p $(PORT):3000 ghcr.io/xtdb/$(V2TAG) $(CMD)
-dload upd update:
-	docker pull ghcr.io/xtdb/$(V2TAG)
+
+#RUNNER=docker
+RUNNER=podman
+run srv server:
+	$(RUNNER) run -ti $(REMOVE_AT_EXIT) $(ARGS) -p $(PORT):3000 ghcr.io/xtdb/$(V2TAG) $(CMD)
+dload upd update pull:
+	$(RUNNER) pull ghcr.io/xtdb/$(V2TAG)
 dr docker:
 	sudo systemctl start docker
 
