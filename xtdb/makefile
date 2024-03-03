@@ -7,4 +7,7 @@ b:
 
 #b2: ARGS=x.test_status x.test_create
 
+req:
+	pip install -r ../requirements.txt
+
 # vim:ts=4:sw=4:noexpandtab

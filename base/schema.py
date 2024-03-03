@@ -43,7 +43,7 @@ import datetime, uuid
 
 class types:
     class link( AttrType):
-        '''many2one, ~many2many ; not own ; deleting this should not delete the linked
+        '''many2one, ~many2many ; not own ; deleting parent should not delete the linked=child
         store refs to obj id's ; cannot be traversed back - linkeds do not know
         '''
         is_substruct = True
@@ -51,9 +51,9 @@ class types:
             super().__init__( typeorname= typeorname, **ka)
 
     class component( AttrType):
-        '''one2one, one2many ; own ; deleting this should delete the linked
-        flatten: convert into bunch-of-parent-attributes (only single, i.e. many=False)
-        embed: store whole inside parent (composite)
+        '''one2one, one2many ; own ; deleting parent should delete the linked
+        flatten: convert into bunch-of-parent-attributes (only single, i.e. many=False), conflicts with embed
+        embed: store whole inside parent (composite, substruct), conflicts with flatten
             xtdb: any content/depth, not searchable/indexable
             datomic: 1 level, up to 8 attributes, represented as tuple  TODO
         default: store refs to obj id's, like link ; cannot be traversed back - linkeds do not know

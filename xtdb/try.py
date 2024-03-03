@@ -13,6 +13,7 @@ db = xtdb( URL) if not V2 else xtdb2( URL)
 if V2:
     db.tx = lambda *a,**ka: db.submit_tx( table= 'trytbl', *a,**ka)
     db.stats = lambda: None
+    #db.debug=1
     _sync = db.sync
     #db.sync = lambda: _sync( 'trytbl')
     #db._cache_now = {}

@@ -9,9 +9,11 @@ REMOVE_AT_EXIT=--rm
 V2TAG=xtdb-standalone-ea
 
 #RUNNER=docker
-RUNNER=podman
+RUNNER = podman
+DATADIR= ./data
 run srv server:
-	$(RUNNER) run -ti $(REMOVE_AT_EXIT) $(ARGS) -p $(PORT):3000 ghcr.io/xtdb/$(V2TAG) $(CMD)
+	mkdir -p $(DATADIR)
+	$(RUNNER) run -ti $(REMOVE_AT_EXIT) $(ARGS) -p $(PORT):3000 -v $(DATADIR):/var/lib/xtdb  ghcr.io/xtdb/$(V2TAG) $(CMD)
 dload upd update pull:
 	$(RUNNER) pull ghcr.io/xtdb/$(V2TAG)
 dr docker:
@@ -58,5 +60,8 @@ enc:
 .PHONY: bench
 bench b:
 	PYTHONPATH=. python bench-transit.py transit-format/examples/0.8/example.json
+
+req:
+	pip install -r requirements.txt
 
 # vim:ts=4:sw=4:noexpandtab
