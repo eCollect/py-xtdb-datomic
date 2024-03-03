@@ -21,7 +21,7 @@ def subschema_is_backref_and_not_forward_ref( subschema):
     #not all.. see ./db-x2y.txt
     #m2o -> forward_ref
     #o2m -> backref (enforce the One)
-    #o2o -> backref if component i.e. owned by parent ( more convenient, e.g. update a.b.c = 3 -> update b.c=3 where B._A_b==a.id )
+    #o2o -> backref if component i.e. owned by parent ( more convenient, e.g. update a.b.c = 3 -> update B.c=3 where B._A_b==a.id )
     #m2m -> backref if indirect/via-submodel ; forward_ref if direct = list( id)
     if isinstance( subschema, schema.types.component): # and not subschema.embed and not subschema.flatten
         return True
@@ -208,19 +208,21 @@ class unit_of_work2:
                     #obj_hide_forward_link( obj, subschema)
                 else:
                     #XXX Rl
-                    subobjs = subobj_or_many if subschema_is_multi( subschema) else [ subobj_or_many ]
+                    subobjs = ()
+                    if subschema_is_multi( subschema): subobjs = subobj_or_many
+                    elif subobj_or_many: subobjs = [ subobj_or_many ]
                     for sobj in subobjs:
-                        assert sobj
+                        assert sobj, (obj,subschema)
                         assert_exists[ obj_key( sobj)] = sobj     #XXX is sobj THE id ???
                         #TODO and convert-to-just-id ???
 
 
         for key, current in me.inputs.items():
             obj = current.obj
-            #XXX Re assert-exists should be ignored if obj is just-to-be-created-or-saved - i.e. a->b & b->a
-            if obj.level != 'update':
-                assert_exists.pop( key, None)
             me.save.append( obj)
+            #XXX Re assert-exists should be ignored if obj is just-to-be-created-or-saved - i.e. a->b & b->a
+            if current.level != 'update':
+                assert_exists.pop( key, None)
 
         #XXX Rx these are mutually exclusive - but after ignoring just-to-be-saved
         both = set( assert_exists) & set( assert_notexists)
@@ -234,14 +236,12 @@ if __name__ == '__main__':
     import unittest
     class a( unittest.TestCase):
         def setUp( me):
-        #    me.u = unit_of_work2()
             t = schema.t
             aschema = schema.dictAttr(
                 aobj = schema.struct(
-                        id = t.str( identity=1),
+                        id = t.str( identity=True),
                         a = t.int,
-                        )
-                )
+                ))
             global obj_get_schema
             obj_get_schema = lambda obj: aschema[ 'aobj' ]
 
@@ -254,34 +254,123 @@ if __name__ == '__main__':
             u.update_no_create( b)
             u.update_or_create( c)
             u.build()
-            print( f'{u.save=}')
-            print( f'{u.assert_notexists=}')
-            print( f'{u.assert_exists=}')
+            #print( f'{u.save=}')
+            #print( f'{u.assert_notexists=}')
+            #print( f'{u.assert_exists=}')
             me.assertEqual( u.save, [ a,b,c])                           #Rc Ru Rs
             me.assertEqual( list( u.assert_notexists.values()), [ a])   #Rc
-            me.assertEqual( list( u.assert_exists.values()), [])        #Re over Ru
+            me.assertEqual( list( u.assert_exists.values()),    [ b])   #Re over Ru
 
         def test_add_twice( me):
             a= dict( id=1, a=5)
+            b= dict( id=2, a=6)
+            a2= dict( a, a=77)
             kinds = 'create_no_update update_no_create update_or_create'.split()
             for kind in kinds:
                 u = unit_of_work2()
                 getattr( u, kind)( a)
 
-                #same kind repeated = ok
-                getattr( u, kind)( a)
+                with me.subTest( f'{kind=}, same id, same kind, same obj = ok'):
+                    getattr( u, kind)( a)
+                with me.subTest( f'{kind=}, same id, same kind, different obj = err'):
+                    with me.assertRaisesRegex( AssertionError, 'duplicate:'):
+                        getattr( u, kind)( a2)
 
-                #other kind = err
                 for okind in kinds:
                     if okind != kind:
-                        with me.assertRaisesRegex( AssertionError, 'duplicate:'):
-                            getattr( u, okind)( a)
+                        with me.subTest( f'{kind=}, same id, other {okind=} = err'):
+                            with me.assertRaisesRegex( AssertionError, 'duplicate:'):
+                                getattr( u, okind)( a)
+
+                for okind in kinds:
+                    with me.subTest( f'{kind=}, other id, any {okind=} = ok'):
+                        u2 = unit_of_work2()
+                        getattr( u2, kind )( a)
+                        getattr( u2, okind)( b)
+
+
+
+    class b( unittest.TestCase):
+        def setUp( me):
+            t = schema.t
+            aschema = schema.dictAttr(
+                aleaf= schema.struct(
+                        id = t.str( identity=True),
+                        type = t.str,
+                        a = t.int,
+                        ),
+                branch= schema.struct(
+                        id = t.str( identity=True),
+                        type = t.str,
+                        b = t.int,
+                        alink_1 = t.link( 'aleaf' ),                #m2o
+                        alink_m = t.link( 'aleaf', many=True ),     #m2m,direct/forward
+                        acomp_1 = t.component( 'aleaf'),
+                        acomp_m = t.component( 'aleaf', many=True ),
+                        acomp_1e= t.component( 'aleaf', embed=True),
+                        acomp_me= t.component( 'aleaf', embed=True, many=True),
+                        acomp_1f= t.component( 'aleaf', flatten=True),
+                        ),
+                croot= schema.struct(
+                        id = t.str( identity=1),
+                        type = t.str,
+                        alink_1 = t.link( 'aleaf'),
+                        blink_1 = t.link( 'branch'),
+                        ),
+                )
+            global obj_get_schema
+            obj_get_schema = lambda obj: aschema[ obj['type'] ]
+            me.aleaf  = lambda **ka: dict( ka, type='aleaf',  id=1000+ka['id'])
+            me.branch = lambda **ka: dict( ka, type='branch', id=2000+ka['id'])
+            me.croot  = lambda **ka: dict( ka, type='croot',  id=3000+ka['id'])
+
+            me.a1 = a1 = me.aleaf( id=11, a=1)
+            me.a2 = a2 = me.aleaf( id=12, a=2)
+            me.a3 = a3 = me.aleaf( id=13, a=3)
+            me.a4 = a4 = me.aleaf( id=14, a=4)
+            me.a5 = a5 = me.aleaf( id=14, a=5)
+
+            me.b_link_0 = me.branch( id=11, b=1)
+            me.b_link_1 = me.branch( id=12, b=2, alink_1= a1)
+            me.b_link_m1= me.branch( id=13, b=3, alink_m= [a2])
+            me.b_link_m2= me.branch( id=14, b=4, alink_m= [a2,a3])
+            me.b_comp_1 = me.branch( id=15, b=5, alink_m= a4)
+            me.b_comp_m = me.branch( id=16, b=6, acomp_m= [a4,a5])
+            me.b_comp_1e= me.branch( id=17, b=7, alink_1e= a4)
+            me.b_comp_me= me.branch( id=18, b=8, acomp_me= [a4,a5])
+            me.b_comp_1f= me.branch( id=19, b=9, acomp_1f= a5)
+
+            me.croot_a = me.croot( id=1, alink_1= a1)
+            me.croot_b = me.croot( id=2, blink_1= me.b_link_m2)
+            me.croot_ab= me.croot( id=3, alink_1= a1, blink_1= me.b_link_m2)
+
+        def test_1( me):
+            u = unit_of_work2()
+            u.create_no_update( me.a1)
+            u.create_no_update( me.a2)
+            u.create_no_update( me.b_link_0)
+            u.create_no_update( me.b_link_1)
+            u.create_no_update( me.b_link_m1)
+            u.create_no_update( me.b_link_m2)
+            u.create_no_update( me.croot_a)
+            u.create_no_update( me.croot_b)
+            u.create_no_update( me.croot_ab)
+            u.build()
+
+            print( f'{u.save=}')
+            print( f'{u.assert_notexists=}')
+            print( f'{u.assert_exists=}')
+            #me.assertEqual( u.save, [ a,b,c])                           #Rc Ru Rs
+            #me.assertEqual( list( u.assert_notexists.values()), [ a])   #Rc
+            #me.assertEqual( list( u.assert_exists.values()),    [ b])   #Re over Ru
+            #TODO
 
         ##def link -> assert_exists (Rl)
         #TODO def obj-with-links -> assert_exists( all-links) (Rl,Rw)
         #TODO def obj-with-alink+links + alink as update_no_create -> same/ assert_exists( alink+links) (Rl,Rw,Re,Rx)
         #TODO def obj-with-alink+links + alink as create_no_update -> assert_not_exists( alink) assert_exists( links) (Rl,Rw,Re,Rx)
         #TODO def obj-with-alink+links + alink as update_or_create -> same/ assert_not_exists( alink) assert_exists( -links) (Rl,Rw,Re,Rx)
+
 
     unittest.main( verbosity=2)
 
