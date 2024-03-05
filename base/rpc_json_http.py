@@ -1,6 +1,7 @@
 import datetime
 from pprint import pformat
 import requests, urllib
+#import niquests as requests, urllib    #drop-in replacement, works
 '''
 base of client for RPC via http and json/edn/transit/whatever - fix _headers, and _content
 '''

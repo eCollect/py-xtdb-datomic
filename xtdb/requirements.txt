@@ -1,0 +1,4 @@
+edn-format
+requests
+#niquests  #drop in replacement for requests
+faker
