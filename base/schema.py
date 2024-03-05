@@ -42,21 +42,34 @@ if 0: #abandon, x.doc/x.unique is set-up in __init__
 import datetime, uuid
 
 class types:
+    '''link/substruct.. 2 aspects: representation and semantics
+    - semantics: can/should child exist without parent
+        - yes, independent - should/can be kept if parent is deleted
+        - no, dependent - should be deleted if detached from parent or parent is deleted
+    - representation:
+        - independent: must be external/separate
+            - the reference can be in parent, or in child, (or in intermediate?)
+        - dependent:
+            - inside parent (embeded) - can be also flattened, for db's which cannot search/index deep
+            - external - all like independent except deletion/"ownership"
+    '''
     class link( AttrType):
         '''many2one, ~many2many ; not own ; deleting parent should not delete the linked=child
-        store refs to obj id's ; cannot be traversed back - linkeds do not know
+        store refs to obj id's ; cannot be directly traversed back - linkeds do not know
         '''
         is_substruct = True
+        is_forward   = True
         def __init__( me, typeorname, **ka):
             super().__init__( typeorname= typeorname, **ka)
 
     class component( AttrType):
         '''one2one, one2many ; own ; deleting parent should delete the linked
-        flatten: convert into bunch-of-parent-attributes (only single, i.e. many=False), conflicts with embed
+        flatten: convert into bunch-of-parent-attributes (only single/one2one, i.e. many=False), conflicts with embed
         embed: store whole inside parent (composite, substruct), conflicts with flatten
-            xtdb: any content/depth, not searchable/indexable
+            xtdb1: any content/depth, not searchable/indexable
+            xtdb2: any content/depth, searchable/indexable
             datomic: 1 level, up to 8 attributes, represented as tuple  TODO
-        default: store refs to obj id's, like link ; cannot be traversed back - linkeds do not know
+        separate=default: store refs to obj id's, like link ; cannot be directly traversed back - linkeds do not know
         only one of above 3, no combinations
         '''
         is_substruct = True
