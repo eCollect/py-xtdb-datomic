@@ -47,17 +47,15 @@ class uow_accessor:
 
 ##
 
-from dataclasses import dataclass
-
 class objset( dict):
-    @dataclass
-    class objref:
-        level: int
-        obj: object
-
     @staticmethod
-    def accessor_obj_key( obj):
+    def accessor_obj_key( obj):     #override this
         raise NotImplemented
+
+    class objref:
+        def __init__( me, obj, level):
+            me.obj = obj
+            me.level = level
 
     def add( me, *objs, level):
         for o in objs:
@@ -78,9 +76,9 @@ class objset( dict):
 class unit_of_work:
     def __init__( me, accessor):
         me.accessor = accessor
-        me.ins = me.objset()
+        me.ins = me._objset()
         me.results = []
-    def objset( me):
+    def _objset( me):
         r = objset()
         r.accessor_obj_key = me.accessor.obj_key
         return r
@@ -95,13 +93,13 @@ class unit_of_work:
         this is for adding, maybe updating ; but not deleting.. XXX
         '''
         accessor = me.accessor
-        results = me.objset()
+        results = me._objset()
         PREDEF_IDS = True
         MAX_LOOPS = 30
         assert me.ins
         for count in range( MAX_LOOPS):
             if not me.ins: break
-            news = me.objset()
+            news = me._objset()
             while me.ins:
                 current = me.ins.popany()
                 level = current.level
@@ -188,7 +186,7 @@ class unit_of_work2:
 
     def build( me):
         '''
-        this is for adding, maybe updating ; but not deleting.. XXX
+        this is for adding, maybe updating ; but not deleting.. XXX/TODO
         - ??? global-above-obj_type constraints ????
         -Rc: for all create/_no_update: save + assert_notexists( all-uniq-keys-of-obj at least objid)
         -Ru: for all update/_no_create: save + assert_exists( objid)
