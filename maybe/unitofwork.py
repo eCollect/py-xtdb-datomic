@@ -67,8 +67,6 @@ class objset( dict):
                 me[ key ] = me.objref( level=level, obj=o)
     def find( me, obj):
         return me.get( me.accessor_obj_key( o) )
-    def sorted_values( me):
-        return sorted( me.values(), key= lambda x: (x.level, me.accessor_obj_key( x.obj)) )
     def delete( me, obj):
         return me.pop( me.accessor_obj_key( o) )
 
@@ -139,7 +137,7 @@ class unit_of_work:
             assert 0, 'too many levels'
 
         if not PREDEF_IDS:
-            me.results = results.sorted_values()
+            me.results = sorted( results.values(), key= lambda x: (x.level, accessor.obj_key( x.obj)) )
         else:
             me.results = list( results.values())
 
@@ -160,11 +158,11 @@ class unit_of_work2:
         me.accessor = accessor
         me.inputs = objset()
         me.inputs.accessor_obj_key = accessor.obj_key
-        #this will need obj_type also
-        me.save = []
-        #these will need obj_type but can be only id
-        me.assert_exists = []
-        me.assert_notexists = []
+
+        #these contain whole objects ; for optimization, built with type+id which are known anyway
+        me.save = {}
+        me.assert_exists = {}
+        me.assert_notexists = {}
 
     def create_no_update( me, *objs):
         'unique - check inexisting beforehand'
@@ -198,15 +196,13 @@ class unit_of_work2:
         '''
         accessor = me.accessor
         assert me.inputs
-        assert_notexists= {}
-        assert_exists= {}
         for key, current in me.inputs.items():
             level = current.level
             obj = current.obj
             if level == 'create':   #Rc
-                assert_notexists[ key] = obj
+                me.assert_notexists[ key] = obj
             elif level == 'update': #Ru
-                assert_exists[ key] = obj
+                me.assert_exists[ key] = obj
             elif level == 'upsert': #Rs
                 pass
             else:
@@ -229,23 +225,18 @@ class unit_of_work2:
                     elif subobj_or_many: subobjs = [ subobj_or_many ]
                     for sobj in subobjs:
                         assert sobj, (obj,subschema)
-                        assert_exists[ accessor.obj_key( sobj)] = sobj     #XXX is sobj THE id ???
+                        me.assert_exists[ accessor.obj_key( sobj)] = sobj     #XXX is sobj THE id ???
                         #TODO and convert-to-just-id ???
 
-
         for key, current in me.inputs.items():
-            obj = current.obj
-            me.save.append( obj)
+            me.save[ key ] = current.obj
             #XXX Re assert-exists should be ignored if obj is just-to-be-created-or-saved - i.e. a->b & b->a
             if current.level != 'update':
-                assert_exists.pop( key, None)
+                me.assert_exists.pop( key, None)
 
         #XXX Rx these are mutually exclusive - but after ignoring just-to-be-saved
-        both = set( assert_exists) & set( assert_notexists)
+        both = set( me.assert_exists) & set( me.assert_notexists)
         assert not both, both
-
-        me.assert_notexists = assert_notexists #.values()
-        me.assert_exists    = assert_exists #.values()
         #me.asserts = dict( assert_exists= assert_exists, assert_notexists = assert_notexists)
 
 if __name__ == '__main__':
@@ -273,7 +264,7 @@ if __name__ == '__main__':
             #print( f'{u.save=}')
             #print( f'{u.assert_notexists=}')
             #print( f'{u.assert_exists=}')
-            me.assertEqual( u.save, [ a,b,c])                           #Rc Ru Rs
+            me.assertEqual( list( u.save.values()), [ a,b,c])                           #Rc Ru Rs
             me.assertEqual( list( u.assert_notexists.values()), [ a])   #Rc
             me.assertEqual( list( u.assert_exists.values()),    [ b])   #Re over Ru
 
@@ -303,7 +294,6 @@ if __name__ == '__main__':
                         u2 = unit_of_work2( me.accessor)
                         getattr( u2, kind )( a)
                         getattr( u2, okind)( b)
-
 
 
     class b( unittest.TestCase):
@@ -387,6 +377,12 @@ if __name__ == '__main__':
         #TODO def obj-with-alink+links + alink as create_no_update -> assert_not_exists( alink) assert_exists( links) (Rl,Rw,Re,Rx)
         #TODO def obj-with-alink+links + alink as update_or_create -> same/ assert_not_exists( alink) assert_exists( -links) (Rl,Rw,Re,Rx)
 
+
+    if 'allow same-id,diff-type':
+        class b_same_id_diff_type( b):
+            def setUp( me):
+                super().setUp()
+                me.accessor.obj_key = lambda obj: (obj['id'], obj['type'])
 
     unittest.main( verbosity=2)
 
