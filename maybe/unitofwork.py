@@ -1,43 +1,49 @@
 from base import schema
 
-def obj_key( obj):
-    return obj[ 'id' ] #what?
-def obj_get_attr( obj, name):
-    return obj.get( name )
-def obj_set_attr( obj, name, value):
-    obj[ name ] = value
-def obj_del_attr( obj, name):
-    del obj[ name ]
-def obj_get_schema( obj):
-    return 'schema-of-obj'
+class uow_accessor:
+    #obj-stuff
+    def obj_key( me, obj):
+        return obj[ 'id' ] #what?
+    def obj_get_attr( me, obj, name):
+        return obj.get( name )
+    def obj_set_attr( me, obj, name, value):
+        obj[ name ] = value
+    def obj_del_attr( me, obj, name):
+        del obj[ name ]
+    def obj_get_schema( me, obj):
+        return 'schema-of-obj'
 
-def subschema_is_link_or_component_non_composite( subschema):
-    return (
-        isinstance( subschema, schema.types.link) or
-        isinstance( subschema, schema.types.component) and not subschema.embed and not subschema.flatten
-        )
-def subschema_is_backref_and_not_forward_ref( subschema):
-    #return True #what?  #all become backrefs, i.e. using ForeignKey in subobj   XXX why?
-    #not all.. see ./db-x2y.txt
-    #m2o -> forward_ref
-    #o2m -> backref (enforce the One)
-    #o2o -> backref if component i.e. owned by parent ( more convenient, e.g. update a.b.c = 3 -> update B.c=3 where B._A_b==a.id )
-    #m2m -> backref if indirect/via-submodel ; forward_ref if direct = list( id)
-    if isinstance( subschema, schema.types.component): # and not subschema.embed and not subschema.flatten
-        return True
-    #( isinstance( subschema, schema.types.link)  #m2o, m2m
-    return subschema.many and subschema.indirect #XXX
+    #schema-stuff
+    def subschema_is_link_or_component_non_composite( me, subschema):
+        return (
+            isinstance( subschema, schema.types.link) or
+            isinstance( subschema, schema.types.component) and not subschema.embed and not subschema.flatten
+            )
+    def subschema_is_backref_and_not_forward_ref( me, subschema):
+        #return True #what?  #all become backrefs, i.e. using ForeignKey in subobj   XXX why?
+        #not all.. see ./db-x2y.txt
+        #m2o -> forward_ref
+        #o2m -> backref (enforce the One)
+        #o2o -> backref if component i.e. owned by parent ( more convenient, e.g. update a.b.c = 3 -> update B.c=3 where B._A_b==a.id )
+        #m2m -> backref if indirect/via-submodel ; forward_ref if direct = list( id)
+        assert me.subschema_is_link_or_component_non_composite( subschema), subschema
+        if isinstance( subschema, schema.types.component): # and not subschema.embed and not subschema.flatten
+            return True
+        #( isinstance( subschema, schema.types.link)  #m2o, m2m
+        return subschema.many and subschema.indirect #XXX
 
-def subschema_is_multi( subschema):
-    return subschema.many
-def obj_set_parent_link_backref( obj, subschema, parent):
-    obj_set_attr( obj, subschema.name.backref, parent)     #XXX ?
-def obj_hide_forward_link( obj, subschema):
-    obj_del_attr( obj, subschema.name)  #or mark it as non-saveable
-def obj_walk_schema( obj):
-    oschema = obj_get_schema( obj)
-    for subschema in oschema.values():
-        yield subschema, obj_get_attr( obj, subschema.name)
+    def subschema_is_multi( me, subschema):
+        return subschema.many
+
+    #obj-with-schema
+    def obj_set_parent_link_backref( me, obj, subschema, parent):
+        me.obj_set_attr( obj, subschema.name.backref, parent)     #XXX ?
+    def obj_hide_forward_link( me, obj, subschema):
+        me.obj_del_attr( obj, subschema.name)  #or mark it as non-saveable
+    def obj_walk_schema( me, obj):
+        oschema = me.obj_get_schema( obj)
+        for subschema in oschema.values():
+            yield subschema, me.obj_get_attr( obj, subschema.name)
 
 ##
 
@@ -49,27 +55,35 @@ class objset( dict):
         level: int
         obj: object
 
+    @staticmethod
+    def accessor_obj_key( obj):
+        raise NotImplemented
+
     def add( me, *objs, level):
         for o in objs:
-            key = obj_key( o)
+            key = me.accessor_obj_key( o)
             if key in me:
                 e = me[ key ]
                 assert o is e.obj and level == e.level, ('duplicate:',level, o, key, e)
             else:
                 me[ key ] = me.objref( level=level, obj=o)
     def find( me, obj):
-        return me.get( obj_key( o) )
+        return me.get( me.accessor_obj_key( o) )
     def sorted_values( me):
-        return sorted( me.values(), key= lambda x: (x.level, obj_key( x.obj)) )
+        return sorted( me.values(), key= lambda x: (x.level, me.accessor_obj_key( x.obj)) )
     def delete( me, obj):
-        return me.pop( obj_key( o) )
+        return me.pop( me.accessor_obj_key( o) )
 
 
 class unit_of_work:
-    def __init__( me):
-        me.ins = objset()
+    def __init__( me, accessor):
+        me.accessor = accessor
+        me.ins = me.objset()
         me.results = []
-
+    def objset( me):
+        r = objset()
+        r.accessor_obj_key = me.accessor.obj_key
+        return r
     def add( me, *objs):
         'add-one-or-multiple-objects'
         me.ins.add( level=0, *objs)
@@ -80,23 +94,24 @@ class unit_of_work:
         else, this produces topology-levelled results ; smaller levels == earlier i.e. level: from before to after ;
         this is for adding, maybe updating ; but not deleting.. XXX
         '''
-        results = objset()
+        accessor = me.accessor
+        results = me.objset()
         PREDEF_IDS = True
         MAX_LOOPS = 30
         assert me.ins
         for count in range( MAX_LOOPS):
             if not me.ins: break
-            news = objset()
+            news = me.objset()
             while me.ins:
                 current = me.ins.popany()
                 level = current.level
                 obj = current.obj
                 results.add( level, obj)
-                for subschema, subobj in obj_walk_schema( obj):
-                    if not subschema_is_link_or_component_non_composite( subschema):
+                for subschema, subobj in accessor.obj_walk_schema( obj):
+                    if not accessor.subschema_is_link_or_component_non_composite( subschema):
                         continue
                     assert subobj
-                    is_backref = subschema_is_backref_and_not_forward_ref( subschema )
+                    is_backref = accessor.subschema_is_backref_and_not_forward_ref( subschema )
 
                     if PREDEF_IDS:
                         newlevel = level   #XXX-1 levels are unneeded - IF the id's are predefined
@@ -107,16 +122,16 @@ class unit_of_work:
 
                     if is_backref:
                         # all subobj-pointing-obj
-                        obj_hide_forward_link( obj, subschema)
+                        accessor.obj_hide_forward_link( obj, subschema)
                         #parent_link = obj
 
-                    subobjs = subobj if subschema_is_multi( subschema) else [ subobj ]
+                    subobjs = subobj if accessor.subschema_is_multi( subschema) else [ subobj ]
                     for sobj in subobjs:
                         if parent_link:
-                            obj_set_parent_link_backref( sobj, subschema, obj)
+                            accessor.obj_set_parent_link_backref( sobj, subschema, obj)
                         oldentry = results.find( sobj )
                         if oldentry:
-                            assert oldentry.obj is sobj, (sobj, obj_key( sobj), oldentry)
+                            assert oldentry.obj is sobj, (sobj, accessor.obj_key( sobj), oldentry)
                             if not PREDEF_IDS:
                                 oldentry.level = min( oldentry.level, newlevel )
                         else:
@@ -143,8 +158,10 @@ topology-sort ??? forward_ref needs subobj-first, backref needs obj first
 
 class unit_of_work2:
     'save together keeping constraints: unique + ref_integrity'
-    def __init__( me):
+    def __init__( me, accessor):
+        me.accessor = accessor
         me.inputs = objset()
+        me.inputs.accessor_obj_key = accessor.obj_key
         #this will need obj_type also
         me.save = []
         #these will need obj_type but can be only id
@@ -181,6 +198,7 @@ class unit_of_work2:
         -Re: if link-obj is just-to-be-saved, assert_exists should be ignored
         -Rx: cannot have both assert_notexists and assert_exists for same obj
         '''
+        accessor = me.accessor
         assert me.inputs
         assert_notexists= {}
         assert_exists= {}
@@ -197,23 +215,23 @@ class unit_of_work2:
                 assert 0, level
 
             #XXX Rw
-            for subschema, subobj_or_many in obj_walk_schema( obj):
-                if not subschema_is_link_or_component_non_composite( subschema):
+            for subschema, subobj_or_many in accessor.obj_walk_schema( obj):
+                if not accessor.subschema_is_link_or_component_non_composite( subschema):
                     continue
                 #XXX Rw
-                is_backref = subschema_is_backref_and_not_forward_ref( subschema )
+                is_backref = accessor.subschema_is_backref_and_not_forward_ref( subschema )
                 if is_backref:
                     pass
                     # all subobj-pointing-obj
-                    #obj_hide_forward_link( obj, subschema)
+                    #accessor.obj_hide_forward_link( obj, subschema)
                 else:
                     #XXX Rl
                     subobjs = ()
-                    if subschema_is_multi( subschema): subobjs = subobj_or_many
+                    if accessor.subschema_is_multi( subschema): subobjs = subobj_or_many
                     elif subobj_or_many: subobjs = [ subobj_or_many ]
                     for sobj in subobjs:
                         assert sobj, (obj,subschema)
-                        assert_exists[ obj_key( sobj)] = sobj     #XXX is sobj THE id ???
+                        assert_exists[ accessor.obj_key( sobj)] = sobj     #XXX is sobj THE id ???
                         #TODO and convert-to-just-id ???
 
 
@@ -242,11 +260,11 @@ if __name__ == '__main__':
                         id = t.str( identity=True),
                         a = t.int,
                 ))
-            global obj_get_schema
-            obj_get_schema = lambda obj: aschema[ 'aobj' ]
+            me.accessor = uow_accessor()
+            me.accessor.obj_get_schema = lambda obj: aschema[ 'aobj' ]
 
         def test_123( me):
-            u = unit_of_work2()
+            u = unit_of_work2( me.accessor)
             a= dict( id=1, a=5)
             b= dict( id=2, a=6)
             c= dict( id=3, a=7)
@@ -267,7 +285,7 @@ if __name__ == '__main__':
             a2= dict( a, a=77)
             kinds = 'create_no_update update_no_create update_or_create'.split()
             for kind in kinds:
-                u = unit_of_work2()
+                u = unit_of_work2( me.accessor)
                 getattr( u, kind)( a)
 
                 with me.subTest( f'{kind=}, same id, same kind, same obj = ok'):
@@ -284,7 +302,7 @@ if __name__ == '__main__':
 
                 for okind in kinds:
                     with me.subTest( f'{kind=}, other id, any {okind=} = ok'):
-                        u2 = unit_of_work2()
+                        u2 = unit_of_work2( me.accessor)
                         getattr( u2, kind )( a)
                         getattr( u2, okind)( b)
 
@@ -318,8 +336,8 @@ if __name__ == '__main__':
                         blink_1 = t.link( 'branch'),
                         ),
                 )
-            global obj_get_schema
-            obj_get_schema = lambda obj: aschema[ obj['type'] ]
+            me.accessor = uow_accessor()
+            me.accessor.obj_get_schema = lambda obj: aschema[ obj[ 'type'] ]
             me.aleaf  = lambda **ka: dict( ka, type='aleaf',  id=1000+ka['id'])
             me.branch = lambda **ka: dict( ka, type='branch', id=2000+ka['id'])
             me.croot  = lambda **ka: dict( ka, type='croot',  id=3000+ka['id'])
@@ -345,7 +363,7 @@ if __name__ == '__main__':
             me.croot_ab= me.croot( id=3, alink_1= a1, blink_1= me.b_link_m2)
 
         def test_1( me):
-            u = unit_of_work2()
+            u = unit_of_work2( me.accessor)
             u.create_no_update( me.a1)
             u.create_no_update( me.a2)
             u.create_no_update( me.b_link_0)
